@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28307.489
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GBCSCore", "GBCSCore\GBCSCore.csproj", "{A636B545-EA85-4C53-9E03-41F6D264D363}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GB.net", "GB.net\GB.net.csproj", "{A636B545-EA85-4C53-9E03-41F6D264D363}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
