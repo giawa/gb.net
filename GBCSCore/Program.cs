@@ -107,7 +107,39 @@ namespace GBCSCore
                     UpdateImGuiInput();
 
                     ImGui.NewFrame();
-                    ImGui.ShowDemoWindow(ref demoWindow);
+                    //ImGui.ShowDemoWindow(ref demoWindow);
+                    if (ImGui.BeginMainMenuBar())
+                    {
+                        if (ImGui.BeginMenu("File"))
+                        {
+                            if (ImGui.MenuItem("Open File", "Ctrl+O"))
+                            {
+                                showOpenDialog = true;
+                                ImGui.SetNextWindowPos(new Vector2(100, 100));
+                            }
+                            ImGui.Separator();
+                            if (ImGui.MenuItem("Exit"))
+                            {
+                                running = false;
+                            }
+                            ImGui.EndMenu();
+                        }
+                        ImGui.EndMainMenuBar();
+                    }
+
+                    if (showOpenDialog)
+                    {
+                        if (openDialog.DisplayFileDialog("Open File", new string[] { ".gb" }, @"E:\Tutorials\GBCSCore\GBCSCore\bin\Debug\netcoreapp2.1", "."))
+                        {
+                            showOpenDialog = false;
+
+                            if (openDialog.IsOk)
+                            {
+                                Console.WriteLine("Open file: " + openDialog.FullPath);
+                            }
+                        }
+                    }
+
                     ImGui.Render();
 
                     // try to render imgui
