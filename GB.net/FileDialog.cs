@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Numerics;
 
-namespace GBCSCore
+namespace GB
 {
     public struct FileInfoStruct
     {

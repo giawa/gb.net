@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using System.Text;
 
-namespace GBCSCore
+namespace GB
 {
     public static class Gui
     {
