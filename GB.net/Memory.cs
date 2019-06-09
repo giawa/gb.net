@@ -28,6 +28,8 @@ namespace GB
             }
         }
 
+        public byte[] VideoMemory {  get { return videoAndExternalRam; } }
+
         public byte[] Cartridge { get; set; }
 
         private byte[] videoAndExternalRam = new byte[16384];

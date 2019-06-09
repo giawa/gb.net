@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace GB
@@ -312,70 +314,13 @@ namespace GB
         }
         #endregion
 
-        public IEnumerator CreateStateMachine()
+        public IEnumerable CreateStateMachine()
         {
             while (running)
             {
                 if (PC == 0x0100)
                 {
                     Console.WriteLine("Reached game!");
-                    // try dumping the tile pattern table here
-                    /*for (int i = 0; i < 256; i++)
-                    {
-                        Bitmap temp2 = new Bitmap(8, 8);
-
-                        // each pixel is 2 bits, so map each to a color
-                        for (int j = 0; j < 8; j++)
-                        {
-                            byte b1 = RAM[0x8000 + i * 16 + j * 2];
-                            byte b2 = RAM[0x8000 + i * 16 + j * 2 + 1];
-
-                            for (int k = 0; k < 8; k++)
-                            {
-                                int pixel = (((b2 >> (7 - k)) & 0x01) << 1) | ((b1 >> (7 - k)) & 0x01);
-                                Color c = (pixel == 0 ? Color.White :
-                                    (pixel == 1 ? Color.Gray :
-                                    (pixel == 2 ? Color.DarkGray : Color.Black)));
-
-                                temp2.SetPixel(k, j, c);
-                            }
-                        }
-
-                        temp2.Save(i.ToString() + ".png", System.Drawing.Imaging.ImageFormat.Png);
-                    }*/
-
-                    int windowTileMap = (RAM[0xff40] & 0x40) == 0x40 ? 0x9c00 : 0x9800;
-                    int bgTileData = (RAM[0xff40] & 0x10) == 0x10 ? 0x8000 : 0x8800;
-                    int bgTileMap = (RAM[0xff40] & 0x08) == 0x08 ? 0x9c00 : 0x9800;
-
-                    Bitmap temp = new Bitmap(256, 256);
-
-                    for (int y = 0; y < 32; y++)
-                    {
-                        for (int x = 0; x < 32; x++)
-                        {
-                            int tile = RAM[bgTileMap + x + y * 32];
-
-                            // what a weird way to store pixel data ... each pixel spans 2 bytes
-                            for (int j = 0; j < 8; j++)
-                            {
-                                byte b1 = RAM[bgTileData + tile * 16 + j * 2];
-                                byte b2 = RAM[bgTileData + tile * 16 + j * 2 + 1];
-
-                                for (int k = 0; k < 8; k++)
-                                {
-                                    int pixel = (((b2 >> (7 - k)) & 0x01) << 1) | ((b1 >> (7 - k)) & 0x01);
-                                    Color c = (pixel == 0 ? Color.White :
-                                        (pixel == 1 ? Color.Gray :
-                                        (pixel == 2 ? Color.DarkGray : Color.Black)));
-
-                                    temp.SetPixel(k + x * 8, j + y * 8, c);
-                                }
-                            }
-                        }
-                    }
-
-                    temp.Save("background.png", System.Drawing.Imaging.ImageFormat.Png);
 
                     yield break;
                 }

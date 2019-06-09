@@ -2,7 +2,10 @@
 using OpenGL;
 using SDL2;
 using System;
+using System.Collections;
+using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 
 namespace GB
 {
@@ -12,6 +15,11 @@ namespace GB
 
         private static bool mouseleft, mouseright;
         private static int mouseX, mouseY, mouseWheel;
+
+        private static IEnumerator cpuState;
+        private static Memory ram;
+        private static CPU cpu;
+        private static LCD lcd;
 
         static void Main(string[] args)
         {
@@ -42,6 +50,8 @@ namespace GB
                 Console.WriteLine("SDL could not create a valid OpenGL context.");
                 return;
             }
+
+            SDL.SDL_GL_SetSwapInterval(1);
 
             SDL.SDL_Event sdlEvent;
             bool running = true;
@@ -121,29 +131,13 @@ namespace GB
                             {
                                 //Disassembler temp = new Disassembler(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb", 0x200);
                                 Cartridge gamecart = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
-                                Memory ram = new Memory();
-                                CPU cpu = new CPU(ram);
-                                LCD lcd = new LCD(ram);
+                                ram = new Memory();
+                                cpu = new CPU(ram);
+                                lcd = new LCD(ram);
                                 cpu.LoadCartridge(gamecart);
 
                                 // run a few clock cycles
-                                var cpuStateMachine = cpu.CreateStateMachine();
-                                int i = 0;
-
-                                System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
-
-                                //for (i = 0; i < 8192 * 4 + 66 + 47 + 4892; i++) cpuStateMachine.MoveNext();
-
-                                for (i = 0; i < 100000000 && cpuStateMachine.MoveNext(); i++)
-                                {
-                                    // 4x lcd clocks per CPU single cycle instruction
-                                    if ((ram[0xff40] & 0x80) == 0x80)
-                                        lcd.Tick1mhz();
-                                }
-
-                                watch.Stop();
-                                Console.WriteLine($"Executed {i} clocks in {watch.ElapsedMilliseconds}ms.");
-                                Console.WriteLine($"Effective clock rate of {(double)i/watch.ElapsedMilliseconds/1000}MHz.");
+                                cpuState = cpu.CreateStateMachine().GetEnumerator();
                             }
                             ImGui.Separator();
                             if (ImGui.MenuItem("Exit"))
@@ -166,18 +160,51 @@ namespace GB
                                 Console.WriteLine("Open file: " + openDialog.FullPath);
 
                                 Cartridge gamecart = new Cartridge(openDialog.FullPath);
-                                Memory ram = new Memory();
-                                CPU cpu = new CPU(ram);
+                                ram = new Memory();
+                                cpu = new CPU(ram);
                                 cpu.LoadCartridge(gamecart);
                             }
                         }
+                    }
+
+                    // run a full frame of gameboy data
+                    if (cpuState != null)
+                    {
+                        Stopwatch watch = Stopwatch.StartNew();
+                        bool frameReady = false;
+                        while (!frameReady && cpuState.MoveNext())
+                        {
+                            frameReady = lcd.Tick1mhz();
+                        }
+
+                        watch.Stop();
+
+                        // did the program terminate?
+                        if (!frameReady) cpuState = null;
+                        else
+                        {
+                            if (frameTexture != null) frameTexture.Dispose();
+                            var bitmapHandle = GCHandle.Alloc(lcd.backgroundTexture, GCHandleType.Pinned);
+                            frameTexture = new Texture(bitmapHandle.AddrOfPinnedObject(), 160, 144, PixelFormat.Rgba, PixelInternalFormat.Rgba);
+                            bitmapHandle.Free();
+                            //Console.WriteLine("Frame after {0}ms", watch.ElapsedMilliseconds);
+                        }
+                    }
+
+                    if (frameTexture != null)
+                    {
+                        ImGui.Begin("Emulator");
+
+                        ImGui.Image((IntPtr)frameTexture.TextureID, new Vector2(160 * 2, 144 * 2));
+
+                        ImGui.End();
                     }
 
                     ImGui.Render();
 
                     // try to render imgui
                     var drawData = ImGui.GetDrawData();
-                    Gui.RenderImDrawData(drawData);
+                    Gui.RenderImDrawData(drawData, frameTexture);
 
                     SDL.SDL_GL_SwapWindow(window);
                 }
@@ -192,6 +219,8 @@ namespace GB
             SDL.SDL_GL_DeleteContext(context);
             SDL.SDL_DestroyWindow(window);
         }
+
+        private static Texture frameTexture;
 
         private static bool showOpenDialog = false;
         private static FileDialog openDialog = new FileDialog();
