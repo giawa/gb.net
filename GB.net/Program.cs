@@ -133,13 +133,16 @@ namespace GB
                                 Cartridge tetris = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
                                 Cartridge cpuTest3 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\03-op sp,hl.gb");
                                 Cartridge cpuTest4 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\04-op r,imm.gb");
+                                Cartridge cpuTest5 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\05-op rp.gb");
                                 Cartridge cpuTest6 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\06-ld r,r.gb");
                                 Cartridge cpuTest7 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\07-jr,jp,call,ret,rst.gb");
+                                Cartridge cpuTest8 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\08-misc instrs.gb");
+                                Cartridge cpuTest9 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\09-op r,r.gb");
                                 ram = new Memory();
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
-                                cpu.LoadCartridge(tetris);
-                                //cpu.SetPC(0x100);
+                                cpu.LoadCartridge(cpuTest9);
+                                cpu.SetPC(0x100);
 
                                 // run a few clock cycles
                                 cpuState = cpu.CreateStateMachine().GetEnumerator();
@@ -180,9 +183,12 @@ namespace GB
                         while (!frameReady && cpuState.MoveNext())
                         {
                             //if (cpu.GetPC() == 0xc796) // cpu test 3
-                            if (cpu.GetPC() == 0xc787) // cpu test 4
+                            //if (cpu.GetPC() == 0xc787) // cpu test 4
+                            //if (cpu.GetPC() == 0xc786) // cpu test 5
                             //if (cpu.GetPC() == 0xc8b3) // cpu test 6
                             //if (cpu.GetPC() == 0xc7f8) // cpu test 7
+                            //if (cpu.GetPC() == 0xc7e0) // cpu test 8
+                            if (cpu.GetPC() == 0xcabb) // cpu test 9
                             {
                                 byte a = cpu.GetA();
                                 char c = (char)a;

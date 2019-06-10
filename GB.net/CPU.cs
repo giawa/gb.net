@@ -213,8 +213,16 @@ namespace GB
                 case 0x18:  // RR
                     rr(ref register);
                     break;
+                case 0x20:
+                    sla(ref register);
+                    break;
+                case 0x28:
+                    sra(ref register);
+                    break;
                 case 0x30:
                     register = (byte)((register << 4) | ((register & 0xf0) >> 4));
+                    if (register == 0) F = 0x80;
+                    else F = 0;
                     break;
                 case 0x38:  // SRL
                     F = (byte)((register & 0x01) << 4);
@@ -317,6 +325,13 @@ namespace GB
             if (register == 0) F |= 0x80;       // sets Z
         }
 
+        private void sla(ref byte register)
+        {
+            F = (byte)((register & 0x80) >> 3); // sets C and clears N and H
+            register = (byte)(register << 1);
+            if (register == 0) F |= 0x80;       // sets Z
+        }
+
         private void rr(ref byte register)
         {
             int carry = (F << 3) & 0x80;
@@ -329,6 +344,14 @@ namespace GB
         {
             F = (byte)((register & 0x01) << 4); // sets C and clears N and H
             register = (byte)((register >> 1) | ((register & 0x01) << 7));
+            if (register == 0) F |= 0x80;       // sets Z
+        }
+
+        private void sra(ref byte register)
+        {
+            F = (byte)((register & 0x01) << 4); // sets C and clears N and H
+            register = (byte)(register >> 1);
+            if ((register & 0x40) == 0x40) register |= 0x80;
             if (register == 0) F |= 0x80;       // sets Z
         }
 
@@ -614,10 +637,22 @@ namespace GB
                                     else if (opcode == 0xF6) or(imm8());    // OR,d8
                                     break;
                                 case 0x07:
-                                    if (opcode == 0x07) rlc(ref A);     // RLCA
-                                    else if (opcode == 0x17) rl(ref A); // RLA
+                                    if (opcode == 0x07)     // RLCA
+                                    {
+                                        rlc(ref A);
+                                        F &= 0x7F;
+                                    }
+                                    else if (opcode == 0x17) // RLA
+                                    {
+                                        rl(ref A);
+                                        F &= 0x7F;
+                                    }
                                     else if (opcode == 0x27) opcodeName = "DAA";
-                                    else if (opcode == 0x37) opcodeName = "SCF";
+                                    else if (opcode == 0x37)            // SCF
+                                    {
+                                        F &= 0x80;
+                                        F |= 0x10;
+                                    }
                                     else if (opcode == 0xC7) call(0x0000);  // RST 00h
                                     else if (opcode == 0xD7) call(0x0010);  // RST 10h
                                     else if (opcode == 0xE7) call(0x0020);  // RST 20h
@@ -664,9 +699,12 @@ namespace GB
                                     else if (opcode == 0x19) add16(DE); // ADD HL,DE
                                     else if (opcode == 0x29) add16(HL); // ADD HL,HL
                                     else if (opcode == 0x39) add16(SP); // ADD HL,SP
-                                    else if (opcode == 0xC9) PC = pop();
-                                    else if (opcode == 0xD9)
+                                    else if (opcode == 0xC9) PC = pop();// RET
+                                    else if (opcode == 0xD9)    // RETI
                                     {
+                                        // TODO:  User manual makes no mention of it, but
+                                        // the reverse engineered manual says that EI doesn't take
+                                        // effect until the next instruction.  This could cause issues
                                         PC = pop();
                                         IME = true;
                                     }
@@ -750,8 +788,16 @@ namespace GB
                                     else if (opcode == 0xFE) cp(imm8());    // CP d8
                                     break;
                                 case 0x0F:
-                                    if (opcode == 0x0F) rrc(ref A);     // RRCA
-                                    else if (opcode == 0x1F) rr(ref A); // RRA
+                                    if (opcode == 0x0F)         // RRCA
+                                    {
+                                        rrc(ref A);
+                                        F &= 0x7F;
+                                    }
+                                    else if (opcode == 0x1F)    // RRA
+                                    {
+                                        rr(ref A);
+                                        F &= 0x7F;
+                                    }
                                     else if (opcode == 0x2F)    // CPL
                                     {
                                         A = (byte)~A;
