@@ -24,6 +24,7 @@ namespace GB
                 if (a < 32768) Cartridge[a] = value;
                 else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
                 else if (a < 0xFE00) internalRam[(a - 0xC000) % 8192] = value;
+                else if (a == 0xff50 && value == 1) firstBoot = false;
                 else specialPurpose[a % 512] = value;
             }
         }
