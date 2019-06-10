@@ -130,11 +130,16 @@ namespace GB
                             if (ImGui.MenuItem("Load Test ROM"))
                             {
                                 //Disassembler temp = new Disassembler(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb", 0x200);
-                                Cartridge gamecart = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
+                                Cartridge tetris = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
+                                Cartridge cpuTest3 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\03-op sp,hl.gb");
+                                Cartridge cpuTest4 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\04-op r,imm.gb");
+                                Cartridge cpuTest6 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\06-ld r,r.gb");
+                                Cartridge cpuTest7 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\07-jr,jp,call,ret,rst.gb");
                                 ram = new Memory();
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
-                                cpu.LoadCartridge(gamecart);
+                                cpu.LoadCartridge(tetris);
+                                //cpu.SetPC(0x100);
 
                                 // run a few clock cycles
                                 cpuState = cpu.CreateStateMachine().GetEnumerator();
@@ -174,6 +179,15 @@ namespace GB
                         bool frameReady = false;
                         while (!frameReady && cpuState.MoveNext())
                         {
+                            //if (cpu.GetPC() == 0xc796) // cpu test 3
+                            if (cpu.GetPC() == 0xc787) // cpu test 4
+                            //if (cpu.GetPC() == 0xc8b3) // cpu test 6
+                            //if (cpu.GetPC() == 0xc7f8) // cpu test 7
+                            {
+                                byte a = cpu.GetA();
+                                char c = (char)a;
+                                Console.Write(c);
+                            }
                             frameReady = lcd.Tick1mhz();
                         }
 

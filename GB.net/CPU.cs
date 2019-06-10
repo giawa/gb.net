@@ -44,11 +44,29 @@ namespace GB
             RAM.Cartridge = cartData;
         }
 
+        public void SetPC(ushort pc)
+        {
+            PC = pc;
+            RAM[0xff50] = 1;    // disable bootloader
+        }
+
         private byte A, F;
         private byte B, C;
         private byte D, E;
         private byte H, L;
         private ushort SP, PC;
+
+        public ushort GetPC()
+        {
+            return PC;
+        }
+
+        public byte GetA()
+        {
+            return A;
+        }
+
+        private bool IME = true;
 
         private ushort AF
         {
@@ -183,11 +201,25 @@ namespace GB
         {
             switch (opcode & 0xf8)
             {
-                case 0x00:
+                case 0x00:  // RLC
                     rlc(ref register);
                     break;
-                case 0x10:
+                case 0x08:  // RRC
+                    rrc(ref register);
+                    break;
+                case 0x10:  // RL
                     rl(ref register);
+                    break;
+                case 0x18:  // RR
+                    rr(ref register);
+                    break;
+                case 0x30:
+                    register = (byte)((register << 4) | ((register & 0xf0) >> 4));
+                    break;
+                case 0x38:  // SRL
+                    F = (byte)((register & 0x01) << 4);
+                    register >>= 1;
+                    if (register == 0) F |= 0x80;
                     break;
                 case 0x78:
                     // BIT 7
@@ -285,6 +317,21 @@ namespace GB
             if (register == 0) F |= 0x80;       // sets Z
         }
 
+        private void rr(ref byte register)
+        {
+            int carry = (F << 3) & 0x80;
+            F = (byte)((register & 0x01) << 4);
+            register = (byte)((register >> 1) | carry);
+            if (register == 0) F |= 0x80;       // sets Z
+        }
+
+        private void rrc(ref byte register)
+        {
+            F = (byte)((register & 0x01) << 4); // sets C and clears N and H
+            register = (byte)((register >> 1) | ((register & 0x01) << 7));
+            if (register == 0) F |= 0x80;       // sets Z
+        }
+
         private void cp(byte n)
         {
             F = 0x40;
@@ -303,29 +350,100 @@ namespace GB
             if (A == 0) F |= 0x80;
         }
 
+        private void adc(byte n)
+        {
+            int carry = (F & 0x10) >> 4;
+            F = 0;
+            int result = A + n + carry;
+            if ((A & 0x0f) + (n & 0x0f) + carry > 0x0f) F |= 0x20;
+            if (result > 255) F |= 0x10;
+            A = (byte)(result);
+            if (A == 0) F |= 0x80;
+        }
+
+        private void add16(ushort n)
+        {
+            int result = n + HL;
+            int bit11 = (n & 0xFFF) + (HL & 0xFFF);
+            F &= 0x80;
+            if (bit11 > 0xfff) F |= 0x20;
+            if (result > 0xffff) F |= 0x10;
+            HL = (ushort)result;
+        }
+
+        private ushort addsp(sbyte n)
+        {
+            int result = n + SP;
+            int bit3 = (n & 0xF) + (SP & 0xF);
+            int bit7 = (n & 0xFF) + (SP & 0xFF);
+            F = 0x00;
+            if (bit3 > 0xF) F |= 0x20;
+            if (bit7 > 0xff) F |= 0x10;
+            return (ushort)result;
+        }
+
         private void sub(byte n)
         {
             int result = A - n;
             F = 0x40;
-            if ((A & 0x0f) > (n & 0x0f)) F |= 0x20;
-            if (A > n) F |= 0x10;
-            A = unchecked((byte)result);
+            if ((A & 0x0f) < (n & 0x0f)) F |= 0x20;
+            if (A < n) F |= 0x10;
+            A = (byte)result;
+            if (A == 0) F |= 0x80;
+        }
+
+        private void sbc(byte n)
+        {
+            int carry = (F & 0x10) >> 4;
+            int result = A - n - carry;
+            F = 0x40;
+            if ((A & 0x0f) < (n & 0x0f) + carry) F |= 0x20;
+            if (A < n + carry) F |= 0x10;
+            A = (byte)result;
+            if (A == 0) F |= 0x80;
+        }
+
+        private void and(byte n)
+        {
+            A &= n;
+            F &= 0x0F;
+            F |= 0x20;
+            if (A == 0) F |= 0x80;
+        }
+
+        private void or(byte n)
+        {
+            A |= n;
+            F &= 0x0F;
+            if (A == 0) F |= 0x80;
+        }
+
+        private void xor(byte n)
+        {
+            A ^= n;
+            F &= 0x0F;
             if (A == 0) F |= 0x80;
         }
         #endregion
+
+        List<ushort> pcHistory = new List<ushort>();
 
         public IEnumerable CreateStateMachine()
         {
             while (running)
             {
-                if (PC == 0x0100)
+                if (PC == 0xc501)
                 {
-                    Console.WriteLine("Reached game!");
-
-                    yield break;
+                    //Console.WriteLine("Passed");
+                }
+                if (PC == 0xc8b3)
+                {
+                    //Console.WriteLine("stop");
                 }
 
+                pcHistory.Add(PC);
                 byte opcode = RAM[PC++];
+                //Console.WriteLine(PC.ToString());
                 byte lowNibble = (byte)(opcode & 0x0f);
                 string opcodeName = string.Empty;
 
@@ -349,37 +467,18 @@ namespace GB
                             break;
                         case 0x80:
                             if (lowNibble < 8) add(op2);
-                            else add((byte)(op2 + ((F >> 4) & 0x01)));
+                            else adc(op2);
                             break;
                         case 0x90:
                             if (lowNibble < 8) sub(op2);
-                            else sub((byte)(op2 + ((F >> 4) & 0x01)));
+                            else sbc(op2);
                             break;
                         case 0xA0:
-                            if (lowNibble < 8)
-                            {
-                                // AND
-                                A &= op2;
-                                F &= 0x0F;
-                                F |= 0x20;
-                                if (A == 0) F |= 0x80;
-                            }
-                            else
-                            {
-                                // XOR
-                                A ^= op2;
-                                F &= 0x0F;
-                                if (A == 0) F |= 0x80;
-                            }
+                            if (lowNibble < 8) and(op2);
+                            else xor(op2);
                             break;
                         case 0xB0:
-                            if (lowNibble < 8)
-                            {
-                                // OR
-                                A |= op2;
-                                F &= 0x0F;
-                                if (A == 0) F |= 0x80;
-                            }
+                            if (lowNibble < 8) or(op2);
                             else cp(op2);   // CP n
                             break;
                         default:
@@ -387,24 +486,36 @@ namespace GB
                             {
                                 case 0x00:
                                     if (opcode == 0x00) ;// opcodeName = "NOP";
-                                    else if (opcode == 0x10) opcodeName = "STOP";
+                                    else if (opcode == 0x10)
+                                    {
+                                        // TODO:  Need to wait for a button press
+                                        running = false;
+                                        Console.WriteLine();
+                                        for (int i = 0; i < 100 && i < pcHistory.Count; i++)
+                                            Console.WriteLine("0x" + pcHistory[pcHistory.Count - 1 - i].ToString("X"));
+                                    }
                                     else if (opcode == 0x20)
                                     {
                                         // JR NZ,r8
-                                        // the order of this operation matters because PC is incremented by imm8s
                                         sbyte imm8 = imm8s();
-                                        if ((F & 0x80) == 0)
-                                            PC = (ushort)(imm8 + PC);
+                                        if ((F & 0x80) == 0x00) PC = (ushort)(imm8 + PC);
                                     }
                                     else if (opcode == 0x30)
                                     {
                                         // JR NC,r8
-                                        // the order of this operation matters because PC is incremented by imm8s
                                         sbyte imm8 = imm8s();
-                                        if ((F & 0x40) == 0)
-                                            PC = (ushort)(imm8 + PC);
+                                        if ((F & 0x10) == 0x00) PC = (ushort)(imm8 + PC);
                                     }
-                                    else if (opcode < 0xE0) opcodeName = "RET";
+                                    else if (opcode == 0xC0)
+                                    {
+                                        // RET NZ
+                                        if ((F & 0x80) == 0x00) PC = pop();
+                                    }
+                                    else if (opcode == 0xD0)
+                                    {
+                                        // RET NZ
+                                        if ((F & 0x10) == 0x00) PC = pop();
+                                    }
                                     else if (opcode == 0xE0) RAM[0xff00 + imm8()] = A;  // LDH (0xff00+n),A
                                     else if (opcode == 0xF0) A = RAM[0xff00 + imm8()];  // LDH A,(0xff00+n)
                                     break;
@@ -423,7 +534,18 @@ namespace GB
                                     else if (opcode == 0x12) RAM[DE] = A;   // LD (DE),A
                                     else if (opcode == 0x22) RAM[HL++] = A; // LD (HL+),A
                                     else if (opcode == 0x32) RAM[HL--] = A; // LD (HL-),A
-                                    else if (opcode < 0xE0) opcodeName = "JP";
+                                    else if (opcode == 0xC2)
+                                    {
+                                        // JP NZ,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x80) == 0x00) PC = imm;
+                                    }
+                                    else if (opcode == 0xD2)
+                                    {
+                                        // JP NC,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x10) == 0x00) PC = imm;
+                                    }
                                     else if (opcode == 0xE2) RAM[0xff00 + C] = A;   // LD (C+0xff00),A
                                     else if (opcode == 0xF2) A = RAM[0xff00 + C];   // LD A,(C+0xff00)
                                     break;
@@ -432,8 +554,14 @@ namespace GB
                                     else if (opcode == 0x13) DE++;
                                     else if (opcode == 0x23) HL++;
                                     else if (opcode == 0x33) SP++;
-                                    else if (opcode == 0xC3) opcodeName = "JP";
-                                    else if (opcode == 0xF3) opcodeName = "DI";
+                                    else if (opcode == 0xC3) PC = imm16();
+                                    else if (opcode == 0xF3)    // DI
+                                    {
+                                        // TODO:  User manual makes no mention of it, but
+                                        // the reverse engineered manual says that DI doesn't take
+                                        // effect until the next instruction.  This could cause issues
+                                        IME = false;
+                                    }
                                     else opcodeName = "undefined";
                                     break;
                                 case 0x04:
@@ -446,7 +574,18 @@ namespace GB
                                         inc8(ref temp);
                                         RAM[HL] = temp;
                                     }
-                                    else if (opcode < 0xE0) opcodeName = "CALL";
+                                    else if (opcode == 0xC4)
+                                    {
+                                        // CALL NZ,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x80) == 0x00) call(imm);
+                                    }
+                                    else if (opcode == 0xD4)
+                                    {
+                                        // CALL NC,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x10) == 0x00) call(imm);
+                                    }
                                     else opcodeName = "undefined";
                                     break;
                                 case 0x05:
@@ -469,56 +608,88 @@ namespace GB
                                     else if (opcode == 0x16) D = imm8();    // LD D,d8
                                     else if (opcode == 0x26) H = imm8();    // LD H,d8
                                     else if (opcode == 0x36) RAM[HL] = imm8();  // LD (HL),d8
-                                    else if (opcode == 0xC6) opcodeName = "ADD";
-                                    else if (opcode == 0xD6) opcodeName = "SUB";
-                                    else if (opcode == 0xE6) opcodeName = "AND";
-                                    else if (opcode == 0xF6) opcodeName = "OR";
+                                    else if (opcode == 0xC6) add(imm8());   // ADD,d8
+                                    else if (opcode == 0xD6) sub(imm8());   // SUB,d8
+                                    else if (opcode == 0xE6) and(imm8());   // AND,d8
+                                    else if (opcode == 0xF6) or(imm8());    // OR,d8
                                     break;
                                 case 0x07:
                                     if (opcode == 0x07) rlc(ref A);     // RLCA
                                     else if (opcode == 0x17) rl(ref A); // RLA
                                     else if (opcode == 0x27) opcodeName = "DAA";
                                     else if (opcode == 0x37) opcodeName = "SCF";
-                                    else opcodeName = "RST";
+                                    else if (opcode == 0xC7) call(0x0000);  // RST 00h
+                                    else if (opcode == 0xD7) call(0x0010);  // RST 10h
+                                    else if (opcode == 0xE7) call(0x0020);  // RST 20h
+                                    else if (opcode == 0xF7) call(0x0030);  // RST 30h
                                     break;
                                 case 0x08:
-                                    if (opcode == 0x08) opcodeName = "LD";
+                                    if (opcode == 0x08)
+                                    {
+                                        // LD (nn),SP
+                                        var addr = imm16();
+                                        RAM[addr] = (byte)(SP & 0xff);
+                                        RAM[addr + 1] = (byte)((SP >> 8) & 0xff);
+                                    }
                                     else if (opcode == 0x18)
                                     {
-                                        // the order of this operation matters because PC is incremented by imm8s
-                                        PC = (ushort)(imm8s() + PC);
+                                        sbyte imm8 = imm8s();
+                                        PC = (ushort)(imm8 + PC);
                                     }
                                     else if (opcode == 0x28)
                                     {
-                                        // the order of this operation matters because PC is incremented by imm8s
                                         sbyte imm8 = imm8s();
-                                        if ((F & 0x80) != 0)
-                                            PC = (ushort)(imm8 + PC);
+                                        if ((F & 0x80) == 0x80) PC = (ushort)(imm8 + PC);
                                     }
                                     else if (opcode == 0x38)
                                     {
-                                        // the order of this operation matters because PC is incremented by imm8s
                                         sbyte imm8 = imm8s();
-                                        if ((F & 0x40) != 0)
-                                            PC = (ushort)(imm8 + PC);
+                                        if ((F & 0x10) == 0x10) PC = (ushort)(imm8 + PC);
                                     }
-                                    else if (opcode < 0xE0) opcodeName = "RET";
-                                    else if (opcode == 0xE8) opcodeName = "ADD";
-                                    else opcodeName = "LD";
+                                    else if (opcode == 0xC8)
+                                    {
+                                        // RET Z
+                                        if ((F & 0x80) == 0x80) PC = pop();
+                                    }
+                                    else if (opcode == 0xD8)
+                                    {
+                                        // RET C
+                                        if ((F & 0x10) == 0x10) PC = pop();
+                                    }
+                                    else if (opcode == 0xE8) SP = addsp(imm8s());   // ADD SP,imm8s
+                                    else if (opcode == 0xF8) HL = addsp(imm8s());   // LD HL,SP+imm8s
                                     break;
                                 case 0x09:
-                                    if (opcode < 0x40) opcodeName = "ADD";
+                                    if (opcode == 0x09) add16(BC);      // ADD HL,BC
+                                    else if (opcode == 0x19) add16(DE); // ADD HL,DE
+                                    else if (opcode == 0x29) add16(HL); // ADD HL,HL
+                                    else if (opcode == 0x39) add16(SP); // ADD HL,SP
                                     else if (opcode == 0xC9) PC = pop();
-                                    else if (opcode == 0xD9) opcodeName = "RETI";
-                                    else if (opcode == 0xE9) opcodeName = "JMP";
-                                    else if (opcode == 0xF9) opcodeName = "LD";
+                                    else if (opcode == 0xD9)
+                                    {
+                                        PC = pop();
+                                        IME = true;
+                                    }
+                                    else if (opcode == 0xE9) PC = HL;   // JMP HL
+                                    else if (opcode == 0xF9) SP = HL;   // LD SP,HL
                                     break;
                                 case 0x0A:
                                     if (opcode == 0x0A) A = RAM[BC];        // LD A,(BC)
                                     else if (opcode == 0x1A) A = RAM[DE];   // LD A,(DE)
                                     else if (opcode == 0x2A) A = RAM[HL++]; // LD A,(HL++)
                                     else if (opcode == 0x3A) A = RAM[HL--]; // LD A,(HL--)
-                                    else if (opcode < 0xE0) opcodeName = "JP";
+                                    else if (opcode == 0xCA)
+                                    {
+                                        // JP Z,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x80) == 0x80) PC = imm;
+                                    }
+                                    else if (opcode == 0xDA)
+                                    {
+                                        // JP C,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x10) == 0x10) PC = imm;
+                                    }
                                     else if (opcode == 0xEA) RAM[imm16()] = A;
                                     else if (opcode == 0xFA) A = RAM[imm16()];
                                     break;
@@ -528,7 +699,13 @@ namespace GB
                                     else if (opcode == 0x2B) HL--;
                                     else if (opcode == 0x3B) SP--;
                                     else if (opcode == 0xCB) throw new Exception();
-                                    else if (opcode == 0xFB) opcodeName = "EI";
+                                    else if (opcode == 0xFB)    // EI
+                                    {
+                                        // TODO:  User manual makes no mention of it, but
+                                        // the reverse engineered manual says that EI doesn't take
+                                        // effect until the next instruction.  This could cause issues
+                                        IME = true;
+                                    }
                                     else opcodeName = "undefined";
                                     break;
                                 case 0x0C:
@@ -536,7 +713,18 @@ namespace GB
                                     else if (opcode == 0x1C) inc8(ref E);
                                     else if (opcode == 0x2C) inc8(ref L);
                                     else if (opcode == 0x3C) inc8(ref A);
-                                    else if (opcode < 0xE0) opcodeName = "CALL";
+                                    else if (opcode == 0xCC)
+                                    {
+                                        // CALL Z,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x80) == 0x80) call(imm);
+                                    }
+                                    else if (opcode == 0xDC)
+                                    {
+                                        // CALL C,a16
+                                        ushort imm = imm16();
+                                        if ((F & 0x10) == 0x10) call(imm);
+                                    }
                                     else opcodeName = "undefined";
                                     break;
                                 case 0x0D:
@@ -556,17 +744,28 @@ namespace GB
                                     else if (opcode == 0x1E) E = imm8();    // LD E,d8
                                     else if (opcode == 0x2E) L = imm8();    // LD L,d8
                                     else if (opcode == 0x3E) A = imm8();    // LD A,d8
-                                    else if (opcode == 0xCE) opcodeName = "ADC";
-                                    else if (opcode == 0xDE) opcodeName = "SBC";
-                                    else if (opcode == 0xEE) opcodeName = "XOR";
+                                    else if (opcode == 0xCE) adc(imm8());   // ADC d8
+                                    else if (opcode == 0xDE) sbc(imm8());   // SBC d8
+                                    else if (opcode == 0xEE) xor(imm8());   // XOR d8
                                     else if (opcode == 0xFE) cp(imm8());    // CP d8
                                     break;
                                 case 0x0F:
-                                    if (opcode == 0x0F) opcodeName = "RRCA";
-                                    else if (opcode == 0x1F) opcodeName = "RRA";
-                                    else if (opcode == 0x2F) opcodeName = "CPL";
-                                    else if (opcode == 0x3F) opcodeName = "CCF";
-                                    else opcodeName = "RST";
+                                    if (opcode == 0x0F) rrc(ref A);     // RRCA
+                                    else if (opcode == 0x1F) rr(ref A); // RRA
+                                    else if (opcode == 0x2F)    // CPL
+                                    {
+                                        A = (byte)~A;
+                                        F |= 0b01100000;
+                                    }
+                                    else if (opcode == 0x3F)    // CCF
+                                    {
+                                        F &= 0b10010000;
+                                        F ^= 0b00010000;
+                                    }
+                                    else if (opcode == 0xCF) call(0x0008);  // RST 08h
+                                    else if (opcode == 0xDF) call(0x0018);  // RST 18h
+                                    else if (opcode == 0xEF) call(0x0028);  // RST 28h
+                                    else if (opcode == 0xFF) call(0x0038);  // RST 38h
                                     break;
                             }
                             break;
@@ -577,7 +776,7 @@ namespace GB
                 {
                     Console.WriteLine("Unimplemented opcode " + opcodeName);
                 }
-
+                
                 yield return null;
             }
         }

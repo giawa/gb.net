@@ -1,4 +1,7 @@
-﻿namespace GB
+﻿using System;
+using System.Drawing;
+
+namespace GB
 {
     class LCD
     {
@@ -10,6 +13,9 @@
 
             for (int i = 0; i < backgroundTexture.Length; i++)
                 backgroundTexture[i] = 255;
+
+            // default gameboy colours (close enough ...)
+            SetPalette(new uint[] { 0xFFDDFDEA, 0xFF93D0AA, 0xFF75894F, 0xFF443216 });
         }
 
         private Mode gpuMode = Mode.Mode2;
@@ -43,6 +49,46 @@
 
         public byte[] backgroundTexture = new byte[160 * 144 * 4];
 
+        private byte[][] activePalette = new byte[4][];
+
+        private void SetPalette(uint[] palette)
+        {
+            if (palette.Length != 4) return;
+            for (int i = 0; i < 4; i++)
+            {
+                activePalette[i] = BitConverter.GetBytes(palette[i]);
+            }
+        }
+
+        public void DumpTiles(int bgTileData = 0x8000)
+        {
+            bgTileData -= 0x8000;
+
+            for (int i = 0; i < 256; i++)
+            {
+                Bitmap temp = new Bitmap(8, 8);
+
+                // what a weird way to store pixel data ... each pixel spans 2 bytes
+                for (int j = 0; j < 8; j++)
+                {
+                    byte b1 = _ram.VideoMemory[bgTileData + i * 16 + j * 2];
+                    byte b2 = _ram.VideoMemory[bgTileData + i * 16 + j * 2 + 1];
+
+                    for (int k = 7; k >= 0; k--)
+                    {
+                        int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+                        Color c = (pixel == 0 ? Color.White :
+                            (pixel == 1 ? Color.Gray :
+                            (pixel == 2 ? Color.DarkGray : Color.Black)));
+
+                        temp.SetPixel(7 - k, j, c);
+                    }
+                }
+
+                temp.Save($"tiles/tile{i}.png", System.Drawing.Imaging.ImageFormat.Png);
+            }
+        }
+
         private void DrawLine(int y)
         {
             int windowTileMap = (_ram[0xff40] & 0x40) == 0x40 ? 0x9c00 : 0x9800;
@@ -66,7 +112,6 @@
                     int _y = y * 8 + j - scy;
                     if (_y >= 144 || _y < 0) continue;
                     int p = _x * 4 + _y * 160 * 4;
-                    //int p = x * 8 * 4 + (y * 8 + j) * 32 * 8 * 4;
                     
                     byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
                     byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
@@ -75,11 +120,8 @@
                     {
                         int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
 
-                        byte c = (byte)(pixel == 0 ? 255 : (pixel == 1 ? 160 : (pixel == 2 ? 100 : 0)));
-                        backgroundTexture[p++] = c;      // B
-                        backgroundTexture[p++] = c;      // G
-                        backgroundTexture[p++] = c;      // R
-                        backgroundTexture[p++] = 255;    // A
+                        Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                        p += 4;
                     }
                 }
             }
