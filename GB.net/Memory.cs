@@ -30,6 +30,10 @@ namespace GB
         }
 
         public byte[] VideoMemory {  get { return videoAndExternalRam; } }
+        public void SetFF04(byte value)
+        {
+            specialPurpose[0xff04 & 511] = value;
+        }
 
         public byte[] Cartridge { get; set; }
 

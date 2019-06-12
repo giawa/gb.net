@@ -20,6 +20,7 @@ namespace GB
         private static Memory ram;
         private static CPU cpu;
         private static LCD lcd;
+        private static Timer timer;
 
         static void Main(string[] args)
         {
@@ -139,6 +140,7 @@ namespace GB
                                 Cartridge cpuTest8 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\08-misc instrs.gb");
                                 Cartridge cpuTest9 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\09-op r,r.gb");
                                 ram = new Memory();
+                                timer = new Timer(ram);
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
                                 cpu.LoadCartridge(cpuTest9);
@@ -169,6 +171,7 @@ namespace GB
 
                                 Cartridge gamecart = new Cartridge(openDialog.FullPath);
                                 ram = new Memory();
+                                timer = new Timer(ram);
                                 cpu = new CPU(ram);
                                 cpu.LoadCartridge(gamecart);
                             }
@@ -189,6 +192,9 @@ namespace GB
                             //if (cpu.GetPC() == 0xc7f8) // cpu test 7
                             //if (cpu.GetPC() == 0xc7e0) // cpu test 8
                             if (cpu.GetPC() == 0xcabb) // cpu test 9
+                            timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
+                                                // timing of TMA being transferred to TIMA, then the TMA
+                                                // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
                             {
                                 byte a = cpu.GetA();
                                 char c = (char)a;
