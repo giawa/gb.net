@@ -105,7 +105,7 @@ void main()
             io.Fonts.ClearTexData();
         }
 
-        public static void RenderImDrawData(ImDrawDataPtr draw_data, Texture frameTexture)
+        public static void RenderImDrawData(ImDrawDataPtr draw_data)
         {
             if (draw_data.CmdListsCount == 0)
             {
@@ -176,8 +176,13 @@ void main()
                             // Apply scissor/clipping rectangle
                             Gl.Scissor((int)clip_rect.X, (int)(_height - clip_rect.W), (int)(clip_rect.Z - clip_rect.X), (int)(clip_rect.W - clip_rect.Y));
 
-                            if (pcmd.TextureId == (IntPtr)1 || frameTexture == null) Gl.BindTexture(TextureTarget.Texture2D, _fontTexture.TextureID);
-                            else Gl.BindTexture(TextureTarget.Texture2D, frameTexture.TextureID);
+                            if (pcmd.TextureId == (IntPtr)_fontTexture.TextureID) Gl.BindTexture(TextureTarget.Texture2D, _fontTexture.TextureID);
+                            else
+                            {
+                                /*foreach (var texture in textures)
+                                    if (pcmd.TextureId == (IntPtr)texture.TextureID)*/
+                                Gl.BindTexture(TextureTarget.Texture2D, (uint)pcmd.TextureId);
+                            }
                             Gl.DrawElementsBaseVertex(BeginMode.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (IntPtr)(idx_offset * 2), vtx_offset);
                         }
 
