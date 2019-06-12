@@ -132,6 +132,9 @@ namespace GB
                             {
                                 //Disassembler temp = new Disassembler(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb", 0x200);
                                 Cartridge tetris = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
+                                Cartridge fullTest = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb");
+                                Cartridge cpuTest1 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\01-special.gb");
+                                Cartridge cpuTest2 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\02-interrupts.gb");
                                 Cartridge cpuTest3 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\03-op sp,hl.gb");
                                 Cartridge cpuTest4 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\04-op r,imm.gb");
                                 Cartridge cpuTest5 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\05-op rp.gb");
@@ -139,16 +142,19 @@ namespace GB
                                 Cartridge cpuTest7 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\07-jr,jp,call,ret,rst.gb");
                                 Cartridge cpuTest8 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\08-misc instrs.gb");
                                 Cartridge cpuTest9 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\09-op r,r.gb");
+                                Cartridge cpuTest10 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\10-bit ops.gb");
+                                Cartridge cpuTest11 = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\individual\11-op a,(hl).gb");
                                 ram = new Memory();
                                 timer = new Timer(ram);
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
-                                cpu.LoadCartridge(cpuTest9);
+                                cpu.LoadCartridge(fullTest);
                                 cpu.SetPC(0x100);
-
+                                
                                 // run a few clock cycles
                                 cpuState = cpu.CreateStateMachine().GetEnumerator();
                             }
+                            
                             ImGui.Separator();
                             if (ImGui.MenuItem("Exit"))
                             {
@@ -183,35 +189,44 @@ namespace GB
                     {
                         Stopwatch watch = Stopwatch.StartNew();
                         bool frameReady = false;
-                        while (!frameReady && cpuState.MoveNext())
+                        int ticks = 0;
+
+                        while (!frameReady && cpuState.MoveNext() && ticks < 10000)
                         {
-                            //if (cpu.GetPC() == 0xc796) // cpu test 3
-                            //if (cpu.GetPC() == 0xc787) // cpu test 4
-                            //if (cpu.GetPC() == 0xc786) // cpu test 5
-                            //if (cpu.GetPC() == 0xc8b3) // cpu test 6
-                            //if (cpu.GetPC() == 0xc7f8) // cpu test 7
-                            //if (cpu.GetPC() == 0xc7e0) // cpu test 8
-                            if (cpu.GetPC() == 0xcabb) // cpu test 9
+                            frameReady = lcd.Tick1MHz();
+                            ram.Tick1MHz();
                             timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
                                                 // timing of TMA being transferred to TIMA, then the TMA
                                                 // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
+
+                            // register all interrupts
+                            cpu.Interrupts = (byte)(timer.TimerInterrupt ? 0x04 : 0x00);
+                            if (lcd.VBlankInterrupt)
                             {
-                                byte a = cpu.GetA();
-                                char c = (char)a;
-                                Console.Write(c);
+                                cpu.Interrupts |= 0x01;
+                                lcd.VBlankInterrupt = false;
                             }
-                            frameReady = lcd.Tick1mhz();
+
+                            ticks++;
                         }
 
                         watch.Stop();
 
                         // did the program terminate?
-                        if (!frameReady) cpuState = null;
+                        if (ticks >= 10000) ;
+                        else if (!frameReady) cpuState = null;
                         else
                         {
+                            //lcd.DumpTiles((ram[0xff40] & 0x10) == 0x10 ? 0x8000 : 0x8800);
+
                             if (frameTexture != null) frameTexture.Dispose();
                             var bitmapHandle = GCHandle.Alloc(lcd.backgroundTexture, GCHandleType.Pinned);
                             frameTexture = new Texture(bitmapHandle.AddrOfPinnedObject(), 160, 144, PixelFormat.Rgba, PixelInternalFormat.Rgba);
+                            bitmapHandle.Free();
+
+                            if (bgTexture != null) bgTexture.Dispose();
+                            bitmapHandle = GCHandle.Alloc(lcd.DumpBackground(), GCHandleType.Pinned);
+                            bgTexture = new Texture(bitmapHandle.AddrOfPinnedObject(), 256, 256, PixelFormat.Rgba, PixelInternalFormat.Rgba);
                             bitmapHandle.Free();
                             //Console.WriteLine("Frame after {0}ms", watch.ElapsedMilliseconds);
                         }
@@ -226,11 +241,20 @@ namespace GB
                         ImGui.End();
                     }
 
+                    if (bgTexture != null)
+                    {
+                        ImGui.Begin("Background");
+
+                        ImGui.Image((IntPtr)bgTexture.TextureID, new Vector2(256 * 2, 256 * 2));
+
+                        ImGui.End();
+                    }
+
                     ImGui.Render();
 
                     // try to render imgui
                     var drawData = ImGui.GetDrawData();
-                    Gui.RenderImDrawData(drawData, frameTexture);
+                    Gui.RenderImDrawData(drawData);
 
                     SDL.SDL_GL_SwapWindow(window);
                 }
@@ -246,7 +270,7 @@ namespace GB
             SDL.SDL_DestroyWindow(window);
         }
 
-        private static Texture frameTexture;
+        private static Texture frameTexture, bgTexture;
 
         private static bool showOpenDialog = false;
         private static FileDialog openDialog = new FileDialog();

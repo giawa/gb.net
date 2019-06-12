@@ -108,11 +108,18 @@ namespace GB
 
     class CPU
     {
+        public byte Interrupts { get; set; }
+
         public Memory RAM { get; private set; }
 
         public CPU(Memory ram)
         {
             RAM = ram;
+
+            F = 0xB0;
+            C = 0x13;
+            DE = 0x00D8;
+            HL = 0x014D;
         }
 
         public Cartridge Cartridge { get; private set; }
@@ -148,6 +155,7 @@ namespace GB
             return A;
         }
 
+        private bool nextIME = true;
         private bool IME = true;
 
         private ushort AF
@@ -277,6 +285,23 @@ namespace GB
             yield return null;
         }
 
+        private void bit(int bit, ref byte register)
+        {
+            F &= 0x10;
+            F |= 0x20;
+            if (((register >> bit) & 0x01) == 0) F |= 0x80;
+        }
+
+        private void res(int bit, ref byte register)
+        {
+            register = (byte)(register & ~(1 << bit));
+        }
+
+        private void set(int bit, ref byte register)
+        {
+            register = (byte)(register | (1 << bit));
+        }
+
         // flags register (F) is Z N H C 0 0 0 0
 
         private void ExtendedOpcode(byte opcode, ref byte register)
@@ -311,11 +336,35 @@ namespace GB
                     register >>= 1;
                     if (register == 0) F |= 0x80;
                     break;
+                case 0x40:
+                case 0x48:
+                case 0x50:
+                case 0x58:
+                case 0x60:
+                case 0x68:
+                case 0x70:
                 case 0x78:
-                    // BIT 7
-                    F &= 0b00010000;    // clears Z, N and leaves C unaffected
-                    F |= 0b00100000;    // sets H
-                    F |= (byte)(~register & 0x80);  // already in the correct position, no shift
+                    bit(((opcode - 0x40) >> 3), ref register);
+                    break;
+                case 0x80:
+                case 0x88:
+                case 0x90:
+                case 0x98:
+                case 0xa0:
+                case 0xa8:
+                case 0xb0:
+                case 0xb8:
+                    res(((opcode - 0x80) >> 3), ref register);
+                    break;
+                case 0xc0:
+                case 0xc8:
+                case 0xd0:
+                case 0xd8:
+                case 0xe0:
+                case 0xe8:
+                case 0xf0:
+                case 0xf8:
+                    set(((opcode - 0xc0) >> 3), ref register);
                     break;
                 default:
                     Console.WriteLine("Unimplemented extended opcode.");
@@ -533,22 +582,60 @@ namespace GB
 
         List<ushort> pcHistory = new List<ushort>();
 
+        private bool CheckInterrupts()
+        {
+            RAM[0xff0f] |= Interrupts;
+
+            if (IME || halted || stopped)
+            {
+                var IF = RAM[0xff0f];
+                bool vblankInterrupt = (IF & 0x01) == 0x01;
+                bool lcdcStatusInterrupt = (IF & 0x02) == 0x02;
+                bool timerInterrupt = (IF & 0x04) == 0x04;
+                bool serialInterrupt = (IF & 0x08) == 0x08;
+                bool inputInterrupt = (IF & 0x10) == 0x10;
+
+                var IE = RAM[0xffff];
+                if (stopped) IE = 0x1f;
+                //if (halted) IE |= 0x1f;
+                if (IE == 0) return false;
+
+                if (vblankInterrupt && CallISR(IE, 0x01, 0x0040)) return true;
+                if (lcdcStatusInterrupt && CallISR(IE, 0x02, 0x0048)) return true;
+                if (timerInterrupt && CallISR(IE, 0x04, 0x0050)) return true;
+                if (serialInterrupt && CallISR(IE, 0x08, 0x0058)) return true;
+                if (inputInterrupt && CallISR(IE, 0x10, 0x0060)) return true;
+            }
+
+            return false;
+        }
+
+        private bool CallISR(byte ie, byte mask, ushort isr)
+        {
+            if ((ie & mask) == mask)
+            {
+                RAM[0xff0f] ^= mask;
+                nextIME = IME = false;
+                call(isr);
+                return true;
+            }
+            return false;
+        }
+
+        private bool halted = false, stopped = false;
+        private static List<byte> specialRegistersUsed = new List<byte>();
+
         public IEnumerable CreateStateMachine()
         {
             while (running)
             {
-                if (PC == 0xc501)
-                {
-                    //Console.WriteLine("Passed");
-                }
-                if (PC == 0xc8b3)
-                {
-                    //Console.WriteLine("stop");
-                }
+                if (CheckInterrupts()) continue;
 
                 pcHistory.Add(PC);
                 byte opcode = RAM[PC++];
-                //Console.WriteLine(PC.ToString());
+                yield return null;  // opcode fetch takes 1 cycle
+
+                IME = nextIME;
                 byte lowNibble = (byte)(opcode & 0x0f);
                 string opcodeName = string.Empty;
 
@@ -566,23 +653,42 @@ namespace GB
                         case 0x40:
                         case 0x50:
                         case 0x60:
+                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            ld(opcode, op2);
+                            break;
                         case 0x70:
-                            if (opcode == 0x76) opcodeName = "HALT";
+                            if (opcode == 0x76) // HALT
+                            {
+                                // TODO:  Increment program counter past this once it resumes from the interrupt handler
+                                halted = true;
+                                while (!CheckInterrupts())
+                                    yield return null;
+                                halted = false;
+                            }
+                            else if (opcode < 0x78 || opcode == 0x7E)
+                            {
+                                yield return null;  // RAM[HL] access
+                                ld(opcode, op2);
+                            }
                             else ld(opcode, op2);
                             break;
                         case 0x80:
+                            if (lowNibble == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) add(op2);
                             else adc(op2);
                             break;
                         case 0x90:
+                            if (lowNibble == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) sub(op2);
                             else sbc(op2);
                             break;
                         case 0xA0:
+                            if (lowNibble == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) and(op2);
                             else xor(op2);
                             break;
                         case 0xB0:
+                            if (lowNibble == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) or(op2);
                             else cp(op2);   // CP n
                             break;
@@ -590,41 +696,89 @@ namespace GB
                             switch (lowNibble)
                             {
                                 case 0x00:
-                                    if (opcode == 0x00) ;// opcodeName = "NOP";
-                                    else if (opcode == 0x10)
+                                    if (opcode == 0x00) ;       // NOP
+                                    else if (opcode == 0x10)    // STOP
                                     {
-                                        // TODO:  Need to wait for a button press
-                                        running = false;
-                                        Console.WriteLine();
-                                        for (int i = 0; i < 100 && i < pcHistory.Count; i++)
-                                            Console.WriteLine("0x" + pcHistory[pcHistory.Count - 1 - i].ToString("X"));
+                                        stopped = true;
+                                        while (!CheckInterrupts())
+                                            yield return null;
+                                        stopped = false;
                                     }
                                     else if (opcode == 0x20)
                                     {
                                         // JR NZ,r8
-                                        sbyte imm8 = imm8s();
-                                        if ((F & 0x80) == 0x00) PC = (ushort)(imm8 + PC);
+                                        sbyte imm = imm8s();
+                                        yield return null;  // 1 cycle for imm8
+                                        if ((F & 0x80) == 0x00)
+                                        {
+                                            PC = (ushort)(imm + PC);
+                                            yield return null;  // 1 cycle for PC
+                                        }
                                     }
                                     else if (opcode == 0x30)
                                     {
                                         // JR NC,r8
-                                        sbyte imm8 = imm8s();
-                                        if ((F & 0x10) == 0x00) PC = (ushort)(imm8 + PC);
+                                        sbyte imm = imm8s();
+                                        yield return null;  // 1 cycle for imm8
+                                        if ((F & 0x10) == 0x00)
+                                        {
+                                            PC = (ushort)(imm + PC);
+                                            yield return null;  // 1 cycle for PC
+                                        }
                                     }
                                     else if (opcode == 0xC0)
                                     {
                                         // RET NZ
-                                        if ((F & 0x80) == 0x00) PC = pop();
+                                        yield return null;
+                                        if ((F & 0x80) == 0x00)
+                                        {
+                                            PC = pop();
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xD0)
                                     {
                                         // RET NZ
-                                        if ((F & 0x10) == 0x00) PC = pop();
+                                        yield return null;
+                                        if ((F & 0x10) == 0x00)
+                                        {
+                                            PC = pop();
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
-                                    else if (opcode == 0xE0) RAM[0xff00 + imm8()] = A;  // LDH (0xff00+n),A
-                                    else if (opcode == 0xF0) A = RAM[0xff00 + imm8()];  // LDH A,(0xff00+n)
+                                    else if (opcode == 0xE0)
+                                    {
+                                        var imm = imm8();
+                                        yield return null;
+                                        if (imm >= 0x10 && imm <= 0x3f)
+                                        {
+                                            RAM[0xff00 + imm] = A;  // LDH (0xff00+n),A
+                                        }
+                                        else
+                                        {
+                                            RAM[0xff00 + imm] = A;  // LDH (0xff00+n),A
+                                            if (!specialRegistersUsed.Contains(imm))
+                                            {
+                                                specialRegistersUsed.Add(imm);
+                                            }
+                                        }
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xF0)
+                                    {
+                                        var imm = imm8();
+                                        yield return null;
+                                        A = RAM[0xff00 + imm];  // LDH A,(0xff00+n)
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x01:
+                                    yield return null;
+                                    yield return null;
                                     if (opcode == 0x01) BC = imm16();       // LD BC,d16
                                     else if (opcode == 0x11) DE = imm16();  // LD DE,d16
                                     else if (opcode == 0x21) HL = imm16();  // LD HL,d16
@@ -632,40 +786,99 @@ namespace GB
                                     else if (opcode == 0xC1) BC = pop();
                                     else if (opcode == 0xD1) DE = pop();
                                     else if (opcode == 0xE1) HL = pop();
-                                    else if (opcode == 0xF1) AF = pop();
+                                    else if (opcode == 0xF1) AF = (ushort)(pop() & 0xfff0);
                                     break;
                                 case 0x02:
-                                    if (opcode == 0x02) RAM[BC] = A;        // LD (BC),A
-                                    else if (opcode == 0x12) RAM[DE] = A;   // LD (DE),A
-                                    else if (opcode == 0x22) RAM[HL++] = A; // LD (HL+),A
-                                    else if (opcode == 0x32) RAM[HL--] = A; // LD (HL-),A
+                                    if (opcode == 0x02)
+                                    {
+                                        RAM[BC] = A;        // LD (BC),A
+                                        yield return null;      // 1 cycle to update RAM
+                                    }
+                                    else if (opcode == 0x12)
+                                    {
+                                        RAM[DE] = A;   // LD (DE),A
+                                        yield return null;      // 1 cycle to update RAM
+                                    }
+                                    else if (opcode == 0x22)
+                                    {
+                                        RAM[HL++] = A; // LD (HL+),A
+                                        yield return null;      // 1 cycle to update RAM
+                                    }
+                                    else if (opcode == 0x32)
+                                    {
+                                        RAM[HL--] = A; // LD (HL-),A
+                                        yield return null;      // 1 cycle to update RAM
+                                    }
                                     else if (opcode == 0xC2)
                                     {
                                         // JP NZ,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x80) == 0x00) PC = imm;
+                                        yield return null;  // 2 cycles for the imm16
+                                        yield return null;
+                                        if ((F & 0x80) == 0x00)
+                                        {
+                                            PC = imm;
+                                            yield return null;  // 1 cycle to set the PC
+                                        }
                                     }
                                     else if (opcode == 0xD2)
                                     {
                                         // JP NC,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x10) == 0x00) PC = imm;
+                                        yield return null;  // 2 cycles for the imm16
+                                        yield return null;
+                                        if ((F & 0x10) == 0x00)
+                                        {
+                                            PC = imm;
+                                            yield return null;  // 1 cycle to set the PC
+                                        }
                                     }
-                                    else if (opcode == 0xE2) RAM[0xff00 + C] = A;   // LD (C+0xff00),A
-                                    else if (opcode == 0xF2) A = RAM[0xff00 + C];   // LD A,(C+0xff00)
+                                    else if (opcode == 0xE2)
+                                    {
+                                        RAM[0xff00 + C] = A;    // LD (C+0xff00),A
+                                        yield return null;      // 1 cycle to update RAM
+                                    }
+                                    else if (opcode == 0xF2)
+                                    {
+                                        A = RAM[0xff00 + C];    // LD A,(C+0xff00)
+                                        yield return null;      // 1 cycle to get data from RAM
+                                    }
                                     break;
                                 case 0x03:
-                                    if (opcode == 0x03) BC++;
-                                    else if (opcode == 0x13) DE++;
-                                    else if (opcode == 0x23) HL++;
-                                    else if (opcode == 0x33) SP++;
-                                    else if (opcode == 0xC3) PC = imm16();
+                                    if (opcode == 0x03)
+                                    {
+                                        BC++;
+                                        yield return null;  // 1 cycle for 16b operation
+                                    }
+                                    else if (opcode == 0x13)
+                                    {
+                                        DE++;
+                                        yield return null;  // 1 cycle for 16b operation
+                                    }
+                                    else if (opcode == 0x23)
+                                    {
+                                        HL++;
+                                        yield return null;  // 1 cycle for 16b operation
+                                    }
+                                    else if (opcode == 0x33)
+                                    {
+                                        SP++;
+                                        yield return null;  // 1 cycle for 16b operation
+                                    }
+                                    else if (opcode == 0xC3)
+                                    {
+                                        ushort imm = imm16();
+                                        yield return null;  // 2 cycles for the imm16
+                                        yield return null;
+                                        PC = imm;
+                                        yield return null;  // 1 cycle to set the PC
+                                    }
                                     else if (opcode == 0xF3)    // DI
                                     {
                                         // TODO:  User manual makes no mention of it, but
                                         // the reverse engineered manual says that DI doesn't take
                                         // effect until the next instruction.  This could cause issues
-                                        IME = false;
+                                        nextIME = false;
                                     }
                                     else opcodeName = "undefined";
                                     break;
@@ -676,20 +889,38 @@ namespace GB
                                     else if (opcode == 0x34)
                                     {
                                         byte temp = RAM[HL];
+                                        yield return null;  // 1 cycle to read RAM
                                         inc8(ref temp);
                                         RAM[HL] = temp;
+                                        yield return null;  // 1 cycle to write RAM
                                     }
                                     else if (opcode == 0xC4)
                                     {
                                         // CALL NZ,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x80) == 0x00) call(imm);
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x80) == 0x00)
+                                        {
+                                            call(imm);
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xD4)
                                     {
                                         // CALL NC,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x10) == 0x00) call(imm);
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x10) == 0x00)
+                                        {
+                                            call(imm);
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else opcodeName = "undefined";
                                     break;
@@ -700,19 +931,50 @@ namespace GB
                                     else if (opcode == 0x35)
                                     {
                                         byte temp = RAM[HL];
+                                        yield return null;
                                         dec8(ref temp);
                                         RAM[HL] = temp;
+                                        yield return null;
                                     }
-                                    else if (opcode == 0xC5) push(BC);
-                                    else if (opcode == 0xD5) push(DE);
-                                    else if (opcode == 0xE5) push(HL);
-                                    else if (opcode == 0xF5) push(AF);
+                                    else if (opcode == 0xC5)
+                                    {
+                                        yield return null;
+                                        yield return null;
+                                        push(BC);
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xD5)
+                                    {
+                                        yield return null;
+                                        yield return null;
+                                        push(DE);
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xE5)
+                                    {
+                                        yield return null;
+                                        yield return null;
+                                        push(HL);
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xF5)
+                                    {
+                                        yield return null;
+                                        yield return null;
+                                        push(AF);
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x06:
+                                    yield return null;
                                     if (opcode == 0x06) B = imm8();         // LD B,d8
                                     else if (opcode == 0x16) D = imm8();    // LD D,d8
                                     else if (opcode == 0x26) H = imm8();    // LD H,d8
-                                    else if (opcode == 0x36) RAM[HL] = imm8();  // LD (HL),d8
+                                    else if (opcode == 0x36)
+                                    {
+                                        RAM[HL] = imm8();  // LD (HL),d8
+                                        yield return null;
+                                    }
                                     else if (opcode == 0xC6) add(imm8());   // ADD,d8
                                     else if (opcode == 0xD6) sub(imm8());   // SUB,d8
                                     else if (opcode == 0xE6) and(imm8());   // AND,d8
@@ -729,71 +991,148 @@ namespace GB
                                         rl(ref A);
                                         F &= 0x7F;
                                     }
-                                    else if (opcode == 0x27) opcodeName = "DAA";
-                                    else if (opcode == 0x37)            // SCF
+                                    else if (opcode == 0x27)    // DAA
+                                    {
+                                        int correction = 0;
+                                        if (((A & 0x0f) > 9 && (F & 0x40) == 0x00) || (F & 0x20) == 0x20) correction |= 0x06;
+                                        if ((A > 0x99 && (F & 0x40) == 0x00) || (F & 0x10) == 0x10) correction |= 0x60;
+
+                                        if ((F & 0x40) == 0x40) A = (byte)(A - correction);
+                                        else A = (byte)(A + correction);
+
+                                        F &= 0x40;
+                                        if (A == 0) F |= 0x80;
+                                        if ((correction & 0x60) == 0x60) F |= 0x10;
+                                    }
+                                    else if (opcode == 0x37)    // SCF
                                     {
                                         F &= 0x80;
                                         F |= 0x10;
                                     }
-                                    else if (opcode == 0xC7) call(0x0000);  // RST 00h
-                                    else if (opcode == 0xD7) call(0x0010);  // RST 10h
-                                    else if (opcode == 0xE7) call(0x0020);  // RST 20h
-                                    else if (opcode == 0xF7) call(0x0030);  // RST 30h
+                                    else
+                                    {
+                                        if (opcode == 0xC7) call(0x0000);  // RST 00h
+                                        else if (opcode == 0xD7) call(0x0010);  // RST 10h
+                                        else if (opcode == 0xE7) call(0x0020);  // RST 20h
+                                        else if (opcode == 0xF7) call(0x0030);  // RST 30h
+                                        yield return null;
+                                        yield return null;
+                                        yield return null;
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x08:
                                     if (opcode == 0x08)
                                     {
                                         // LD (nn),SP
                                         var addr = imm16();
+                                        yield return null;
+                                        yield return null;
                                         RAM[addr] = (byte)(SP & 0xff);
+                                        yield return null;
                                         RAM[addr + 1] = (byte)((SP >> 8) & 0xff);
+                                        yield return null;
                                     }
                                     else if (opcode == 0x18)
                                     {
-                                        sbyte imm8 = imm8s();
-                                        PC = (ushort)(imm8 + PC);
+                                        sbyte imm = imm8s();
+                                        yield return null;
+                                        PC = (ushort)(imm + PC);
+                                        yield return null;
                                     }
                                     else if (opcode == 0x28)
                                     {
-                                        sbyte imm8 = imm8s();
-                                        if ((F & 0x80) == 0x80) PC = (ushort)(imm8 + PC);
+                                        sbyte imm = imm8s();
+                                        yield return null;
+                                        if ((F & 0x80) == 0x80)
+                                        {
+                                            PC = (ushort)(imm + PC);
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0x38)
                                     {
-                                        sbyte imm8 = imm8s();
-                                        if ((F & 0x10) == 0x10) PC = (ushort)(imm8 + PC);
+                                        sbyte imm = imm8s();
+                                        yield return null;
+                                        if ((F & 0x10) == 0x10)
+                                        {
+                                            PC = (ushort)(imm + PC);
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xC8)
                                     {
                                         // RET Z
-                                        if ((F & 0x80) == 0x80) PC = pop();
+                                        yield return null;
+                                        if ((F & 0x80) == 0x80)
+                                        {
+                                            PC = pop();
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xD8)
                                     {
                                         // RET C
-                                        if ((F & 0x10) == 0x10) PC = pop();
+                                        yield return null;
+                                        if ((F & 0x10) == 0x10)
+                                        {
+                                            PC = pop();
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
-                                    else if (opcode == 0xE8) SP = addsp(imm8s());   // ADD SP,imm8s
-                                    else if (opcode == 0xF8) HL = addsp(imm8s());   // LD HL,SP+imm8s
+                                    else if (opcode == 0xE8)
+                                    {
+                                        var imm = imm8s();
+                                        yield return null;
+                                        SP = addsp(imm);   // ADD SP,imm8s
+                                        yield return null;
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xF8)
+                                    {
+                                        var imm = imm8s();
+                                        yield return null;
+                                        HL = addsp(imm);   // LD HL,SP+imm8s
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x09:
+                                    if (opcode < 0x49) yield return null;
                                     if (opcode == 0x09) add16(BC);      // ADD HL,BC
                                     else if (opcode == 0x19) add16(DE); // ADD HL,DE
                                     else if (opcode == 0x29) add16(HL); // ADD HL,HL
                                     else if (opcode == 0x39) add16(SP); // ADD HL,SP
-                                    else if (opcode == 0xC9) PC = pop();// RET
+                                    else if (opcode == 0xC9)
+                                    {
+                                        PC = pop();// RET
+                                        yield return null;
+                                        yield return null;
+                                        yield return null;
+                                    }
                                     else if (opcode == 0xD9)    // RETI
                                     {
                                         // TODO:  User manual makes no mention of it, but
                                         // the reverse engineered manual says that EI doesn't take
                                         // effect until the next instruction.  This could cause issues
                                         PC = pop();
-                                        IME = true;
+                                        nextIME = true;
+                                        yield return null;
+                                        yield return null;
+                                        yield return null;
                                     }
                                     else if (opcode == 0xE9) PC = HL;   // JMP HL
-                                    else if (opcode == 0xF9) SP = HL;   // LD SP,HL
+                                    else if (opcode == 0xF9)
+                                    {
+                                        SP = HL;   // LD SP,HL
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x0A:
+                                    if (opcode < 0x4A) yield return null;
                                     if (opcode == 0x0A) A = RAM[BC];        // LD A,(BC)
                                     else if (opcode == 0x1A) A = RAM[DE];   // LD A,(DE)
                                     else if (opcode == 0x2A) A = RAM[HL++]; // LD A,(HL++)
@@ -802,18 +1141,45 @@ namespace GB
                                     {
                                         // JP Z,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x80) == 0x80) PC = imm;
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x80) == 0x80)
+                                        {
+                                            PC = imm;
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xDA)
                                     {
                                         // JP C,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x10) == 0x10) PC = imm;
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x10) == 0x10)
+                                        {
+                                            PC = imm;
+                                            yield return null;
+                                        }
                                     }
-                                    else if (opcode == 0xEA) RAM[imm16()] = A;
-                                    else if (opcode == 0xFA) A = RAM[imm16()];
+                                    else if (opcode == 0xEA)
+                                    {
+                                        var imm = imm16();
+                                        yield return null;
+                                        yield return null;
+                                        RAM[imm] = A;
+                                        yield return null;
+                                    }
+                                    else if (opcode == 0xFA)
+                                    {
+                                        var imm = imm16();
+                                        yield return null;
+                                        yield return null;
+                                        A = RAM[imm];
+                                        yield return null;
+                                    }
                                     break;
                                 case 0x0B:
+                                    if (opcode < 0x4B) yield return null;
                                     if (opcode == 0x0B) BC--;
                                     else if (opcode == 0x1B) DE--;
                                     else if (opcode == 0x2B) HL--;
@@ -824,7 +1190,7 @@ namespace GB
                                         // TODO:  User manual makes no mention of it, but
                                         // the reverse engineered manual says that EI doesn't take
                                         // effect until the next instruction.  This could cause issues
-                                        IME = true;
+                                        nextIME = true;
                                     }
                                     else opcodeName = "undefined";
                                     break;
@@ -837,13 +1203,29 @@ namespace GB
                                     {
                                         // CALL Z,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x80) == 0x80) call(imm);
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x80) == 0x80)
+                                        {
+                                            call(imm);
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else if (opcode == 0xDC)
                                     {
                                         // CALL C,a16
                                         ushort imm = imm16();
-                                        if ((F & 0x10) == 0x10) call(imm);
+                                        yield return null;
+                                        yield return null;
+                                        if ((F & 0x10) == 0x10)
+                                        {
+                                            call(imm);
+                                            yield return null;
+                                            yield return null;
+                                            yield return null;
+                                        }
                                     }
                                     else opcodeName = "undefined";
                                     break;
@@ -854,12 +1236,18 @@ namespace GB
                                     else if (opcode == 0x3D) dec8(ref A);
                                     else if (opcode == 0xCD)
                                     {
+                                        yield return null;  // 2 clocks to load imm16
+                                        yield return null;
                                         ushort nextPC = imm16();
+                                        yield return null;  // 2 clocks to push the stack pointer
+                                        yield return null;  
                                         call(nextPC);
+                                        yield return null;  // 1 clock to set PC
                                     }
                                     else opcodeName = "undefined";
                                     break;
                                 case 0x0E:
+                                    yield return null;  // these all take an extra cycle to load imm8
                                     if (opcode == 0x0E) C = imm8();         // LD C,d8
                                     else if (opcode == 0x1E) E = imm8();    // LD E,d8
                                     else if (opcode == 0x2E) L = imm8();    // LD L,d8
@@ -890,10 +1278,16 @@ namespace GB
                                         F &= 0b10010000;
                                         F ^= 0b00010000;
                                     }
-                                    else if (opcode == 0xCF) call(0x0008);  // RST 08h
-                                    else if (opcode == 0xDF) call(0x0018);  // RST 18h
-                                    else if (opcode == 0xEF) call(0x0028);  // RST 28h
-                                    else if (opcode == 0xFF) call(0x0038);  // RST 38h
+                                    else
+                                    {
+                                        yield return null;
+                                        yield return null;
+                                        yield return null;
+                                        if (opcode == 0xCF) call(0x0008);  // RST 08h
+                                        else if (opcode == 0xDF) call(0x0018);  // RST 18h
+                                        else if (opcode == 0xEF) call(0x0028);  // RST 28h
+                                        else if (opcode == 0xFF) call(0x0038);  // RST 38h
+                                    }
                                     break;
                             }
                             break;
@@ -904,8 +1298,6 @@ namespace GB
                 {
                     Console.WriteLine("Unimplemented opcode " + opcodeName);
                 }
-                
-                yield return null;
             }
         }
     }
