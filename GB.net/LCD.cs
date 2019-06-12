@@ -18,11 +18,15 @@ namespace GB
             SetPalette(new uint[] { 0xFFDDFDEA, 0xFF93D0AA, 0xFF75894F, 0xFF443216 });
         }
 
-        private Mode gpuMode = Mode.Mode2;
+        private LCDMode lcdMode = LCDMode.Mode2;
         private int clkCtr;
         private int lineCtr;
 
-        private enum Mode
+        public LCDMode CurrentMode { get { return lcdMode; } }
+
+        public bool VBlankInterrupt { get; set; }
+
+        public enum LCDMode
         {
             HBlank = 0,
             VBlank = 1,
@@ -30,8 +34,11 @@ namespace GB
             Mode3 = 3
         }
 
-        public bool Tick1mhz()
+        public bool Tick1MHz()
         {
+            byte ramff40 = _ram[0xff40];
+            if ((ramff40 & 0x80) == 0) return false;
+
             bool frameComplete = Tick4mhz();
             if (Tick4mhz()) frameComplete = true;
             if (Tick4mhz()) frameComplete = true;
@@ -41,7 +48,7 @@ namespace GB
             byte ramff41 = _ram[0xff41];
             ramff41 &= 0b11111000;
             if (_ram[0xff45] == lineCtr) ramff41 |= 0x04;
-            ramff41 |= (byte)gpuMode;
+            ramff41 |= (byte)lcdMode;
             _ram[0xff41] = ramff41;
 
             return frameComplete;
@@ -89,6 +96,45 @@ namespace GB
             }
         }
 
+        private byte[] fullBackground = new byte[256 * 256 * 4];
+
+        public byte[] DumpBackground()
+        {
+            var ff40 = _ram[0xff40];
+            int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
+            int bgTileData = (ff40 & 0x10) == 0x10 ? 0x8000 : 0x8800;
+            int bgTileMap = (ff40 & 0x08) == 0x08 ? 0x9c00 : 0x9800;
+            bgTileData -= 0x8000;
+            bgTileMap -= 0x8000;
+
+            for (int y = 0; y < 32; y++)
+            {
+                for (int x = 0; x < 32; x++)
+                {
+                    int tile = _ram.VideoMemory[bgTileMap + x + y * 32];
+
+                    // what a weird way to store pixel data ... each pixel spans 2 bytes
+                    for (int j = 0; j < 8; j++)
+                    {
+                        int p = x * 4 * 8 + (y * 8 + j) * 256 * 4;
+
+                        byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
+                        byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
+
+                        for (int k = 7; k >= 0; k--)
+                        {
+                            int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+
+                            Array.Copy(activePalette[pixel], 0, fullBackground, p, 4);
+                            p += 4;
+                        }
+                    }
+                }
+            }
+
+            return fullBackground;
+        }
+
         private void DrawLine(int y)
         {
             int windowTileMap = (_ram[0xff40] & 0x40) == 0x40 ? 0x9c00 : 0x9800;
@@ -100,7 +146,46 @@ namespace GB
             int scx = _ram[0xff43];
             int scy = _ram[0xff42];
 
-            for (int x = 0; x < 32; x++)
+            // this is going to be slow!
+            for (int x = 0; x < 160;)
+            {
+                int p = x * 4 + y * 160 * 4;
+
+                int tx = (x + scx) & 255;
+                int ty = (y + scy) & 255;
+
+                int tilex = tx / 8;
+                int tiley = ty / 8;
+
+                int tile = _ram.VideoMemory[bgTileMap + tilex + tiley * 32];
+
+                int j = ty % 8;
+                int k = 7 - (tx % 8);
+
+                byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
+                byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
+
+                if (k == 7 && (x + 8) < 160)
+                {
+                    for (; k >= 0; k--)
+                    {
+                        int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+                        Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                        p += 4;
+                    }
+
+                    x += 8;
+                }
+                else
+                {
+                    int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+                    Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+
+                    x++;
+                }
+            }
+
+            /*for (int x = 0; x < 32; x++)
             {
                 int tile = _ram.VideoMemory[bgTileMap + x + y * 32];
                 int _x = scx + x * 8;
@@ -124,47 +209,51 @@ namespace GB
                         p += 4;
                     }
                 }
-            }
+            }*/
         }
 
         private bool Tick4mhz()
         {
             clkCtr++;
 
-            switch (gpuMode)
+            switch (lcdMode)
             {
-                case Mode.Mode2:
+                case LCDMode.Mode2:
                     if (clkCtr == 80)
                     {
-                        gpuMode = Mode.Mode3;
+                        lcdMode = LCDMode.Mode3;
                         clkCtr = 0;
                     }
                     break;
-                case Mode.Mode3:
+                case LCDMode.Mode3:
                     if (clkCtr == 172)
                     {
-                        gpuMode = Mode.HBlank;
+                        lcdMode = LCDMode.HBlank;
                         clkCtr = 0;
                     }
                     break;
-                case Mode.HBlank:
+                case LCDMode.HBlank:
                     if (clkCtr == 204)
                     {
                         DrawLine(lineCtr);
 
-                        if (lineCtr == 143) gpuMode = Mode.VBlank;
-                        else gpuMode = Mode.Mode2;
+                        if (lineCtr == 143)
+                        {
+                            lcdMode = LCDMode.VBlank;
+                            VBlankInterrupt = true;
+                        }
+                        else lcdMode = LCDMode.Mode2;
                         lineCtr++;
                         _ram[0xff44] = (byte)lineCtr;
                         clkCtr = 0;
                     }
                     break;
-                case Mode.VBlank:
+                case LCDMode.VBlank:
                     if (clkCtr == 456)
                     {
                         if (lineCtr == 153)
                         {
-                            gpuMode = Mode.Mode2;
+                            lcdMode = LCDMode.Mode2;
                             lineCtr = 0;
                             _ram[0xff44] = (byte)lineCtr;
                             clkCtr = 0;
