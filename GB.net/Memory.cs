@@ -13,29 +13,49 @@ namespace GB
         {
             get
             {
-                if (a < 256 && firstBoot) return bootstrap[a];
-                else if (a < 32768) return Cartridge[a];
-                else if (a < 0xC000) return videoAndExternalRam[a - 0x8000];
-                else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
-                else return specialPurpose[a % 512];
+                if (dmaCtr == 160)
+                {
+                    if (a < 256 && firstBoot) return bootstrap[a];
+                    else if (a < 32768) return Cartridge[a];
+                    else if (a < 0xC000) return videoAndExternalRam[a - 0x8000];
+                    else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
+                    else return specialPurpose[a & 511];
+                }
+                else
+                {
+                    return specialPurpose[a & 511];
+                }
             }
             set
             {
-                if (a < 32768) Cartridge[a] = value;
-                else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
-                else if (a < 0xFE00) internalRam[(a - 0xC000) % 8192] = value;
-                else if (a == 0xff50 && value == 1) firstBoot = false;
-                else specialPurpose[a % 512] = value;
+                if (a == 0xff46)
+                    dmaCtr = 0;
+
+                if (dmaCtr == 160)
+                {
+                    if (a < 32768) Cartridge[a] = value;
+                    else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
+                    else if (a < 0xFE00) internalRam[(a - 0xC000) % 8192] = value;
+                    else if (a == 0xff50 && value == 1) firstBoot = false;
+                    else if (a == 0xff04) specialPurpose[a & 511] = 0;
+                    else specialPurpose[a & 511] = value;
+                }
+                else
+                {
+                    specialPurpose[a & 511] = value;
+                }
             }
         }
 
-        public byte[] VideoMemory {  get { return videoAndExternalRam; } }
         public void SetFF04(byte value)
         {
             specialPurpose[0xff04 & 511] = value;
         }
 
-        public byte[] Cartridge { get; set; }
+        public byte[] VideoMemory { get { return videoAndExternalRam; } }
+
+        //public byte[] Cartridge { get; set; }
+        public Cartridge Cartridge { get; set; }
 
         private byte[] videoAndExternalRam = new byte[16384];
         private byte[] internalRam = new byte[8192];
@@ -53,6 +73,20 @@ namespace GB
         public Memory()
         {
             Reset();
+        }
+
+        private int dmaCtr = 160;
+
+        public void Tick1MHz()
+        {
+            if (dmaCtr < 160)
+            {
+                byte ff46 = specialPurpose[0x0146];
+                int address = 0x100 * ff46;//0x8000 + ((0x100 * ff46) & 0x5fff) + dmaCtr;
+                byte memory = (address < 0xc000 ? videoAndExternalRam[address - 0x8000] : internalRam[(address - 0xC000) % 8192]);
+                specialPurpose[dmaCtr] = memory;
+                dmaCtr++;
+            }
         }
     }
 }

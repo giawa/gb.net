@@ -123,9 +123,7 @@ namespace GB
             PC = 0;
             RAM.Reset();
 
-            byte[] cartData = new byte[32768];
-            Array.Copy(cart.data, cartData, Math.Min(32768, cart.data.Length));
-            RAM.Cartridge = cartData;
+            RAM.Cartridge = cart;
         }
 
         public void SetPC(ushort pc)
