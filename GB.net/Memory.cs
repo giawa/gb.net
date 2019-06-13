@@ -19,32 +19,57 @@ namespace GB
                     else if (a < 32768) return Cartridge[a];
                     else if (a < 0xC000) return videoAndExternalRam[a - 0x8000];
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
+                    else if (a == 0xff00) return 0x3f;
                     else return specialPurpose[a & 511];
                 }
                 else
                 {
-                    return specialPurpose[a & 511];
+                    if (a < 0xfe00) return 255;
+                    else return specialPurpose[a & 511];
                 }
             }
             set
             {
                 if (a == 0xff46)
+                {
                     dmaCtr = 0;
+                    specialPurpose[a & 511] = value;
+                    Tick1MHz();
+                    return;
+                }
+                if (a == 0xff44 || a == 0xff04)
+                {
+                    specialPurpose[a & 511] = 0;
+                    return;
+                }
+                if (a == 0xff50 && value == 1)
+                {
+                    firstBoot = false;
+                    return;
+                }
+                if (a >= 0xff4f && a <= 0xff55)
+                {
+                    Console.WriteLine();
+                }
 
                 if (dmaCtr == 160)
                 {
                     if (a < 32768) Cartridge[a] = value;
                     else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
                     else if (a < 0xFE00) internalRam[(a - 0xC000) % 8192] = value;
-                    else if (a == 0xff50 && value == 1) firstBoot = false;
-                    else if (a == 0xff04) specialPurpose[a & 511] = 0;
                     else specialPurpose[a & 511] = value;
                 }
                 else
                 {
-                    specialPurpose[a & 511] = value;
+                    if (a < 0xfe00) return;
+                    else specialPurpose[a & 511] = value;
                 }
             }
+        }
+
+        public void SetFF44(byte value)
+        {
+            specialPurpose[0xff44 & 511] = value;
         }
 
         public void SetFF04(byte value)
@@ -82,7 +107,7 @@ namespace GB
             if (dmaCtr < 160)
             {
                 byte ff46 = specialPurpose[0x0146];
-                int address = 0x100 * ff46;//0x8000 + ((0x100 * ff46) & 0x5fff) + dmaCtr;
+                int address = 0x100 * ff46 + dmaCtr;//0x8000 + ((0x100 * ff46) & 0x5fff) + dmaCtr;
                 byte memory = (address < 0xc000 ? videoAndExternalRam[address - 0x8000] : internalRam[(address - 0xC000) % 8192]);
                 specialPurpose[dmaCtr] = memory;
                 dmaCtr++;
