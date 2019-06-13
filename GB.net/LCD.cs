@@ -20,7 +20,7 @@ namespace GB
 
         private LCDMode lcdMode = LCDMode.Mode2;
         private int clkCtr;
-        private int lineCtr;
+        private byte lineCtr;
 
         public LCDMode CurrentMode { get { return lcdMode; } }
 
@@ -46,8 +46,7 @@ namespace GB
 
             // update the STAT flags with the current mode and LY=LYC
             byte ramff41 = _ram[0xff41];
-            ramff41 &= 0b11111000;
-            if (_ram[0xff45] == lineCtr) ramff41 |= 0x04;
+            ramff41 &= 0b11111100;
             ramff41 |= (byte)lcdMode;
             _ram[0xff41] = ramff41;
 
@@ -137,9 +136,10 @@ namespace GB
 
         private void DrawLine(int y)
         {
-            int windowTileMap = (_ram[0xff40] & 0x40) == 0x40 ? 0x9c00 : 0x9800;
-            int bgTileData = (_ram[0xff40] & 0x10) == 0x10 ? 0x8000 : 0x8800;
-            int bgTileMap = (_ram[0xff40] & 0x08) == 0x08 ? 0x9c00 : 0x9800;
+            var ff40 = _ram[0xff40];
+            int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
+            int bgTileData = (ff40 & 0x10) == 0x10 ? 0x8000 : 0x8800;
+            int bgTileMap = (ff40 & 0x08) == 0x08 ? 0x9c00 : 0x9800;
             bgTileData -= 0x8000;
             bgTileMap -= 0x8000;
 
@@ -184,32 +184,6 @@ namespace GB
                     x++;
                 }
             }
-
-            /*for (int x = 0; x < 32; x++)
-            {
-                int tile = _ram.VideoMemory[bgTileMap + x + y * 32];
-                int _x = scx + x * 8;
-                if (_x >= 160 || _x < 0) break;
-
-                // what a weird way to store pixel data ... each pixel spans 2 bytes
-                for (int j = 0; j < 8; j++)
-                {
-                    int _y = y * 8 + j - scy;
-                    if (_y >= 144 || _y < 0) continue;
-                    int p = _x * 4 + _y * 160 * 4;
-                    
-                    byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
-                    byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
-
-                    for (int k = 7; k >= 0; k--)
-                    {
-                        int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
-
-                        Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
-                        p += 4;
-                    }
-                }
-            }*/
         }
 
         private bool Tick4mhz()
@@ -244,7 +218,9 @@ namespace GB
                         }
                         else lcdMode = LCDMode.Mode2;
                         lineCtr++;
-                        _ram[0xff44] = (byte)lineCtr;
+                        _ram.SetFF44(lineCtr);
+                        if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                        else _ram[0xff41] &= 0b11111011;
                         clkCtr = 0;
                     }
                     break;
@@ -255,22 +231,18 @@ namespace GB
                         {
                             lcdMode = LCDMode.Mode2;
                             lineCtr = 0;
-                            _ram[0xff44] = (byte)lineCtr;
+                            _ram.SetFF44(lineCtr);
+                            if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                            else _ram[0xff41] &= 0b11111011;
                             clkCtr = 0;
                             return true;
-
-                            /*var bitmapData = temp.LockBits(new Rectangle(0, 0, 160, 144), System.Drawing.Imaging.ImageLockMode.WriteOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-                            Marshal.Copy(backgroundTexture, 0, bitmapData.Scan0, backgroundTexture.Length);
-                            temp.UnlockBits(bitmapData);
-                            temp.Save($"frame{f}.png", System.Drawing.Imaging.ImageFormat.Png);
-                            f++;*/
-
-                            // 157 frames at 59.727fps = ~6.62s...  Doesn't seem far off
                         }
                         else
                         {
                             lineCtr++;
-                            _ram[0xff44] = (byte)lineCtr;
+                            _ram.SetFF44(lineCtr);
+                            if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                            else _ram[0xff41] &= 0b11111011;
                             clkCtr = 0;
                         }
                     }
