@@ -67,8 +67,17 @@ namespace GB
                 {
                     if (a >= 0x4000)
                     {
-                        int bank = Math.Max(1, mbc1_4000_bank) - 1;
-                        return data[0x4000 * bank + a];
+                        if (mbc1_4_32_mode)
+                        {
+                            // TODO:  Implement RAM?
+                            int bank = Math.Max(1, mbc1_4000_bank) - 1;
+                            return data[0x4000 * bank + a];
+                        }
+                        else
+                        {
+                            int bank = Math.Max(1, mbc1_4000_bank + 0x20 * mbc1_a000_bank) - 1;
+                            return data[0x4000 * bank + a];
+                        }
                     }
                     else
                     {
@@ -84,18 +93,23 @@ namespace GB
             {
                 if (Type == CartridgeType.MBC1)
                 {
-                    if (a >= 0x6000 && a <= 0x7fff) mbc1_4_32_mode = (value & 0x01) == 0x01;
-                    else if (a >= 0x2000 && a <= 0x3fff) mbc1_4000_bank = value & 0x1f;
+                    if (a >= 0x6000 && a <= 0x7fff)
+                        mbc1_4_32_mode = (value & 0x01) == 0x01;
+                    else if (a >= 0x2000 && a <= 0x3fff)
+                        mbc1_4000_bank = value & 0x1f;
                     else if (mbc1_4_32_mode)
                     {
                         // in 4/32 mode using an MBC1 memory model
-                        if (a >= 0x4000 && a <= 0x5fff) mbc1_a000_bank = value & 0x03;
-                        else if (a >= 0x000 && a <= 0x1fff) mbc1_enable_bank = (value & 0x0f) == 0x0a;
+                        if (a >= 0x4000 && a <= 0x5fff)
+                            mbc1_a000_bank = value & 0x03;
+                        else if (a >= 0x000 && a <= 0x1fff)
+                            mbc1_enable_bank = (value & 0x0f) == 0x0a;
                     }
                     else
                     {
                         // in 16/8 mode using an MBC1 memory model
-                        if (a >= 0x4000 && a <= 0x5fff) mbc1_16_8_offset = (value << 6);
+                        if (a >= 0x4000 && a <= 0x5fff)
+                            mbc1_16_8_offset = (value << 6);
                     }
                 }
                 else
@@ -116,10 +130,9 @@ namespace GB
         {
             RAM = ram;
 
-            F = 0xB0;
-            C = 0x13;
-            DE = 0x00D8;
-            HL = 0x014D;
+            RAM[0xff40] = 0x83;
+
+            Breakpoints = new List<ushort>();
         }
 
         public Cartridge Cartridge { get; private set; }
@@ -155,8 +168,8 @@ namespace GB
             return A;
         }
 
-        private bool nextIME = true;
-        private bool IME = true;
+        private bool nextIME = false;
+        private bool IME = false;
 
         private ushort AF
         {
@@ -250,7 +263,6 @@ namespace GB
         private IEnumerable RunExtendedOpcode(byte opcode)
         {
             // each column of opcodes run on a particular register, so grab that register here
-
             switch (opcode & 0x07)
             {
                 case 0:
@@ -274,8 +286,10 @@ namespace GB
                 case 6:
                     // this sucks, since RAM is an indexer we need a temporary store
                     byte temp = RAM[HL];
+                    if (opcode < 0x40 || opcode > 0x7f) yield return null;
                     ExtendedOpcode(opcode, ref temp);
                     RAM[HL] = temp;
+                    yield return null;
                     break;
                 case 7:
                     ExtendedOpcode(opcode, ref A);
@@ -580,8 +594,6 @@ namespace GB
         }
         #endregion
 
-        List<ushort> pcHistory = new List<ushort>();
-
         private bool CheckInterrupts()
         {
             RAM[0xff0f] |= Interrupts;
@@ -615,9 +627,16 @@ namespace GB
             if ((ie & mask) == mask)
             {
                 RAM[0xff0f] ^= mask;
-                nextIME = IME = false;
-                call(isr);
-                return true;
+                if (IME)
+                {
+                    nextIME = IME = false;
+                    call(isr);
+                    return true;
+                }
+                else if (halted || stopped)
+                {
+                    return true;
+                }
             }
             return false;
         }
@@ -625,15 +644,26 @@ namespace GB
         private bool halted = false, stopped = false;
         private static List<byte> specialRegistersUsed = new List<byte>();
 
+        public List<ushort> Breakpoints { get; private set; }
+
         public IEnumerable CreateStateMachine()
         {
             while (running)
             {
-                if (CheckInterrupts()) continue;
+                foreach (var pc in Breakpoints)
+                {
+                    if (pc == PC)
+                    {
+                        Console.WriteLine("Hit 0x" + pc.ToString());
+                        //LCD temp = new LCD(RAM);
+                        //temp.DumpTiles(0x8000);
+                    }
+                }
 
-                pcHistory.Add(PC);
-                byte opcode = RAM[PC++];
+                byte opcode = RAM[PC];
                 yield return null;  // opcode fetch takes 1 cycle
+                if (CheckInterrupts()) continue;
+                PC++;
 
                 IME = nextIME;
                 byte lowNibble = (byte)(opcode & 0x0f);
@@ -643,6 +673,11 @@ namespace GB
 
                 if (opcode == 0xCB)
                 {
+                    if (RAM[PC] == 0x1c)
+                    {
+                        Console.WriteLine("stop");
+                    }
+
                     foreach (var clk in RunExtendedOpcode(RAM[PC++]))
                         yield return null;
                 }
@@ -653,7 +688,7 @@ namespace GB
                         case 0x40:
                         case 0x50:
                         case 0x60:
-                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            if ((opcode & 0x07) == 0x06) yield return null;  // RAM[HL] access
                             ld(opcode, op2);
                             break;
                         case 0x70:
@@ -673,22 +708,22 @@ namespace GB
                             else ld(opcode, op2);
                             break;
                         case 0x80:
-                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            if ((opcode & 0x07) == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) add(op2);
                             else adc(op2);
                             break;
                         case 0x90:
-                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            if ((opcode & 0x07) == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) sub(op2);
                             else sbc(op2);
                             break;
                         case 0xA0:
-                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            if ((opcode & 0x07) == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) and(op2);
                             else xor(op2);
                             break;
                         case 0xB0:
-                            if (lowNibble == 6) yield return null;  // RAM[HL] access
+                            if ((opcode & 0x07) == 6) yield return null;  // RAM[HL] access
                             if (lowNibble < 8) or(op2);
                             else cp(op2);   // CP n
                             break;
@@ -879,6 +914,7 @@ namespace GB
                                         // the reverse engineered manual says that DI doesn't take
                                         // effect until the next instruction.  This could cause issues
                                         nextIME = false;
+                                        IME = false;
                                     }
                                     else opcodeName = "undefined";
                                     break;
@@ -1015,7 +1051,6 @@ namespace GB
                                         else if (opcode == 0xD7) call(0x0010);  // RST 10h
                                         else if (opcode == 0xE7) call(0x0020);  // RST 20h
                                         else if (opcode == 0xF7) call(0x0030);  // RST 30h
-                                        yield return null;
                                         yield return null;
                                         yield return null;
                                         yield return null;
