@@ -136,6 +136,11 @@ namespace GB
                     SetDIV(value);
                     return;
                 }
+                if (a == 0xff05)
+                {
+                    if (!timaDelayed) specialPurpose[0x105] = value;
+                    return;
+                }
 
                 if (dmaCtr == 161 || dmaCtr == -1)
                 {
@@ -188,6 +193,14 @@ namespace GB
             Reset();
         }
 
+        private bool reloadTima = false;
+        private bool timaDelayed = false;
+
+        public void ReloadTIMA()
+        {
+            reloadTima = true;
+        }
+
         // A DMA transfer moves 160 bytes of memory up to OAM memory.
         // The DMA takes 1 cycle to start, which is why it is initialized to '-2'.
         // The -2 value comes because the RAM ticks after the CPU, whereas in real
@@ -200,6 +213,7 @@ namespace GB
 
         public void Tick1MHz()
         {
+            // Perform DMA
             if (dmaCtr < 161)
             {
                 if (dmaCtr >= 0 && dmaCtr < 160)
@@ -211,6 +225,15 @@ namespace GB
                 }
                 dmaCtr++;
             }
+
+            // Reload the TIMA register with TMA
+            if (reloadTima)
+            {
+                specialPurpose[0x105] = specialPurpose[0x0106];
+                reloadTima = false;
+                timaDelayed = true;
+            }
+            else timaDelayed = false;
         }
     }
 }

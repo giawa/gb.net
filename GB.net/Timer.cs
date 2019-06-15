@@ -17,7 +17,9 @@
             if (tma > 255)
             {
                 TimerInterrupt = true;
-                _ram.SpecialPurpose[0x105] = _ram[0xff06];
+                //_ram.SpecialPurpose[0x105] = _ram[0xff06];
+                _ram.SpecialPurpose[0x105] = 0;
+                _ram.ReloadTIMA();
             }
             else
             {
@@ -27,7 +29,7 @@
 
         public void Tick1MHz()
         {
-            var tac = _ram[0xff07];
+            var tac = _ram.SpecialPurpose[0x107];//_ram[0xff07];
             int ctr = _ram.TimerCounter;
 
             if ((tac & 0x04) == 0x04)
