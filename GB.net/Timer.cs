@@ -9,6 +9,8 @@
             _ram = ram;
         }
 
+        public int Counter {  get { return ctr; } }
+
         private int ctr = 0;
 
         public bool TimerInterrupt;
@@ -37,6 +39,8 @@
             var tac = _ram[0xff07];
             var div = _ram[0xff04];
 
+            // writing to the DIV register will set the top bits of counter
+            if (div != (ctr >> 6)) ctr = (div << 6) | (ctr & 0x3f);
             ctr = (ctr + 1) & 16383;
             ctrCount++;
 
