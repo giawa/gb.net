@@ -175,11 +175,11 @@ namespace GB
                     break;
                 case 6:
                     // this sucks, since RAM is an indexer we need a temporary store
+                    yield return null;
                     byte temp = RAM[HL];
                     if (opcode < 0x40 || opcode > 0x7f) yield return null;
                     ExtendedOpcode(opcode, ref temp);
                     RAM[HL] = temp;
-                    yield return null;
                     break;
                 case 7:
                     ExtendedOpcode(opcode, ref A);
@@ -616,17 +616,7 @@ namespace GB
             }
 
             byte opcode = RAM[PC];
-            /*if (CheckInterrupts())
-            {
-                yield return null;
-                yield return null;
-                yield return null;
-                yield return null;
-                yield return null;
-                yield break;
-            }*/
             yield return null;  // opcode fetch takes 1 cycle
-
             PC++;
 
             byte lowNibble = (byte)(opcode & 0x0f);
@@ -661,8 +651,8 @@ namespace GB
                         }
                         else if (opcode < 0x78 || opcode == 0x7E)
                         {
-                            yield return null;  // RAM[HL] access
                             ld(opcode, op2);
+                            yield return null;  // RAM[HL] access
                         }
                         else ld(opcode, op2);
                         break;
@@ -759,7 +749,6 @@ namespace GB
                                 }
                                 else if (opcode == 0xE0)
                                 {
-                                    yield return null;
                                     var imm = imm8();
                                     yield return null;
                                     if (imm >= 0x10 && imm <= 0x3f)
@@ -774,13 +763,14 @@ namespace GB
                                             specialRegistersUsed.Add(imm);
                                         }
                                     }
+                                    yield return null;
                                 }
                                 else if (opcode == 0xF0)
                                 {
-                                    yield return null;
                                     var imm = imm8();
                                     yield return null;
                                     A = RAM[0xff00 + imm];  // LDH A,(0xff00+n)
+                                    yield return null;
                                 }
                                 break;
                             case 0x01:
@@ -1139,8 +1129,12 @@ namespace GB
                                 }
                                 break;
                             case 0x0A:
-                                if (opcode < 0x4A) yield return null;
-                                if (opcode == 0x0A) A = RAM[BC];        // LD A,(BC)
+                                //if (opcode < 0x4A) yield return null;
+                                if (opcode == 0x0A)
+                                {
+                                    A = RAM[BC];        // LD A,(BC)
+                                    yield return null;
+                                }
                                 else if (opcode == 0x1A) A = RAM[DE];   // LD A,(DE)
                                 else if (opcode == 0x2A) A = RAM[HL++]; // LD A,(HL++)
                                 else if (opcode == 0x3A) A = RAM[HL--]; // LD A,(HL--)
