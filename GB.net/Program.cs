@@ -163,6 +163,7 @@ namespace GB
                                 Cartridge mooneye = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\mooneye\manual-only\sprite_priority.gb");
                                 ram = new Memory();
                                 timer = new Timer(ram);
+                                ram.Timer = timer;
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
                                 cpu.LoadCartridge(fullTest);
@@ -198,6 +199,7 @@ namespace GB
                                 Cartridge gamecart = new Cartridge(openDialog.FullPath);
                                 ram = new Memory();
                                 timer = new Timer(ram);
+                                ram.Timer = timer;
                                 cpu = new CPU(ram);
                                 lcd = new LCD(ram);
                                 cpu.LoadCartridge(gamecart);
@@ -214,7 +216,7 @@ namespace GB
                         bool frameReady = false;
                         int ticks = 0;
 
-                        while (!frameReady && ticks < 17556 && cpuState.MoveNext())
+                        while (!frameReady && ticks < 17556)// && cpuState.MoveNext())
                         {
                             // support GBC double speed
                             if ((ram[0xff4d] & 0x80) == 0x80)
@@ -252,6 +254,8 @@ namespace GB
                             timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
                                                 // timing of TMA being transferred to TIMA, then the TMA
                                                 // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
+
+                            cpuState.MoveNext();
 
                             ticks++;
                         }

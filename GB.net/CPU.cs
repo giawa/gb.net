@@ -870,6 +870,7 @@ namespace GB
                                 }
                                 else if (opcode == 0xE0)
                                 {
+                                    yield return null;
                                     var imm = imm8();
                                     yield return null;
                                     if (imm >= 0x10 && imm <= 0x3f)
@@ -884,14 +885,13 @@ namespace GB
                                             specialRegistersUsed.Add(imm);
                                         }
                                     }
-                                    yield return null;
                                 }
                                 else if (opcode == 0xF0)
                                 {
+                                    yield return null;
                                     var imm = imm8();
                                     yield return null;
                                     A = RAM[0xff00 + imm];  // LDH A,(0xff00+n)
-                                    yield return null;
                                 }
                                 break;
                             case 0x01:
