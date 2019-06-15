@@ -64,6 +64,7 @@ namespace GB
             Gui.RecreateFontDeviceTexture();
 
             bool demoWindow = true;
+            byte joypad = 0x0f;
 
             while (running)
             {
@@ -75,11 +76,27 @@ namespace GB
                         {
                             running = false;
                         }
-                        else if (sdlEvent.type == SDL.SDL_EventType.SDL_KEYDOWN)
+                        else if (sdlEvent.type == SDL.SDL_EventType.SDL_KEYDOWN && ram != null)
                         {
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_LEFT) ram.JoyPad |= Memory.JoyPadButton.Left;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_UP) ram.JoyPad |= Memory.JoyPadButton.Up;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_DOWN) ram.JoyPad |= Memory.JoyPadButton.Down;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_RIGHT) ram.JoyPad |= Memory.JoyPadButton.Right;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_a) ram.JoyPad |= Memory.JoyPadButton.A;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_s) ram.JoyPad |= Memory.JoyPadButton.B;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_RETURN) ram.JoyPad |= Memory.JoyPadButton.Start;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_BACKSLASH) ram.JoyPad |= Memory.JoyPadButton.Select;
                         }
                         else if (sdlEvent.type == SDL.SDL_EventType.SDL_KEYUP)
                         {
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_LEFT) ram.JoyPad &= ~Memory.JoyPadButton.Left;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_UP) ram.JoyPad &= ~Memory.JoyPadButton.Up;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_DOWN) ram.JoyPad &= ~Memory.JoyPadButton.Down;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_RIGHT) ram.JoyPad &= ~Memory.JoyPadButton.Right;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_a) ram.JoyPad &= ~Memory.JoyPadButton.A;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_s) ram.JoyPad &= ~Memory.JoyPadButton.B;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_RETURN) ram.JoyPad &= ~Memory.JoyPadButton.Start;
+                            if (sdlEvent.key.keysym.sym == SDL.SDL_Keycode.SDLK_BACKSLASH) ram.JoyPad &= ~Memory.JoyPadButton.Select;
                         }
                         else if (sdlEvent.type == SDL.SDL_EventType.SDL_MOUSEBUTTONDOWN)
                         {
