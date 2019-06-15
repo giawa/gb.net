@@ -13,7 +13,7 @@ namespace GB
         {
             get
             {
-                if (dmaCtr == 160)
+                if (dmaCtr == 161 || dmaCtr == -1)
                 {
                     if (a < 256 && firstBoot) return bootstrap[a];
                     else if (a < 32768) return Cartridge[a];
@@ -24,7 +24,8 @@ namespace GB
                 }
                 else
                 {
-                    if (a < 0xfe00) return 255;
+                    if (a < 0xff00)
+                        return 255;
                     else return specialPurpose[a & 511];
                 }
             }
@@ -32,7 +33,7 @@ namespace GB
             {
                 if (a == 0xff46)
                 {
-                    dmaCtr = 0;
+                    dmaCtr = -2;
                     specialPurpose[a & 511] = value;
                     Tick1MHz();
                     return;
@@ -52,7 +53,7 @@ namespace GB
                     Console.WriteLine();
                 }
 
-                if (dmaCtr == 160)
+                if (dmaCtr == 161 || dmaCtr == -1)
                 {
                     if (a < 32768) Cartridge[a] = value;
                     else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
@@ -61,7 +62,8 @@ namespace GB
                 }
                 else
                 {
-                    if (a < 0xfe00) return;
+                    if (a < 0xff00)
+                        return;
                     else specialPurpose[a & 511] = value;
                 }
             }
@@ -100,16 +102,27 @@ namespace GB
             Reset();
         }
 
-        private int dmaCtr = 160;
+        // A DMA transfer moves 160 bytes of memory up to OAM memory.
+        // The DMA takes 1 cycle to start, which is why it is initialized to '-2'.
+        // The -2 value comes because the RAM ticks after the CPU, whereas in real
+        // life it would tick _with_ the CPU.  So we need to add one extra cycle delay
+        // to be correct.
+        // The DMA also takes 1 clock cycle to wrap up, which is why we run until 161.
+        // During the DMA (from 0 to 161) the RAM returns 0xff for all reads (except high RAM).
+        // The DMA start, restart and timing have been verified with mooneye test ROMs.
+        private int dmaCtr = 161;
 
         public void Tick1MHz()
         {
-            if (dmaCtr < 160)
+            if (dmaCtr < 161)
             {
-                byte ff46 = specialPurpose[0x0146];
-                int address = 0x100 * ff46 + dmaCtr;//0x8000 + ((0x100 * ff46) & 0x5fff) + dmaCtr;
-                byte memory = (address < 0xc000 ? videoAndExternalRam[address - 0x8000] : internalRam[(address - 0xC000) % 8192]);
-                specialPurpose[dmaCtr] = memory;
+                if (dmaCtr >= 0 && dmaCtr < 160)
+                {
+                    byte ff46 = specialPurpose[0x0146];
+                    int address = 0x100 * ff46 + dmaCtr;
+                    byte memory = (address < 32768 ? Cartridge[address] : (address < 0xc000 ? videoAndExternalRam[address - 0x8000] : internalRam[(address - 0xC000) % 8192]));
+                    specialPurpose[dmaCtr] = memory;
+                }
                 dmaCtr++;
             }
         }
