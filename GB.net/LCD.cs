@@ -239,7 +239,7 @@ namespace GB
                     }
 
                     displayedSprites++;
-                    if (displayedSprites > 9) break;
+                    if (displayedSprites > 10) break;
 
                     for (int x = Math.Max(0, spriteX); x < Math.Min(160, spriteX + 8); x++)
                     {
