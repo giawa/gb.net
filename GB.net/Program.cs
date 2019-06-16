@@ -223,7 +223,10 @@ namespace GB
                             {
                                 // register all interrupts
                                 if (timer.TimerInterrupt)
+                                {
                                     ram[0xff0f] |= 0x04;
+                                    timer.TimerInterrupt = false;
+                                }
                                 timer.Tick1MHz();
                                 ram.Tick1MHz();
                                 cpuState.MoveNext();
@@ -231,7 +234,10 @@ namespace GB
 
                             // register all interrupts
                             if (timer.TimerInterrupt)
+                            {
                                 ram[0xff0f] |= 0x04;
+                                timer.TimerInterrupt = false;
+                            }
                             if (lcd.VBlankInterrupt)
                             {
                                 ram[0xff0f] |= 0x01;
