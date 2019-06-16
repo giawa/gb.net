@@ -39,12 +39,13 @@ namespace GB
         public bool Tick1MHz()
         {
             byte ramff40 = _ram[0xff40];
-            if ((ramff40 & 0x80) == 0) return false;
+            //if ((ramff40 & 0x80) == 0) return false;
+            bool displayActive = (ramff40 & 0x80) == 0x80;
 
-            bool frameComplete = Tick4mhz();
-            if (Tick4mhz()) frameComplete = true;
-            if (Tick4mhz()) frameComplete = true;
-            if (Tick4mhz()) frameComplete = true;
+            bool frameComplete = Tick4mhz(displayActive);
+            if (Tick4mhz(displayActive)) frameComplete = true;
+            if (Tick4mhz(displayActive)) frameComplete = true;
+            if (Tick4mhz(displayActive)) frameComplete = true;
 
             // update the STAT flags with the current mode and LY=LYC
             byte ramff41 = _ram[0xff41];
@@ -161,15 +162,12 @@ namespace GB
             int scx = _ram[0xff43];
             int scy = _ram[0xff42];
 
-            //Array.Clear(backgroundTexture, 160 * 4 * y, 160 * 4);
             for (int i = 0; i < 160 * 4; i++)
                 backgroundTexture[i + 160 * 4 * y] = 255;
 
             // this is going to be slow!
             for (int x = 0; x < 160;)
             {
-                //int p = x * 4 + y * 160 * 4;
-
                 int tx = (x + scx) & 255;
                 int ty = (y + scy) & 255;
 
@@ -196,18 +194,13 @@ namespace GB
                     {
                         int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                         pixel = palettebglookup[pixel];
-                        /*Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
-                        p += 4;*/
                         lineData[x++] = (pixel << 24) | 0xff;
                     }
-
-                    //x += 8;
                 }
                 else
                 {
                     int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                     pixel = palettebglookup[pixel];
-                    //Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
                     lineData[x] = (pixel << 24) | 0xff;
 
                     x++;
@@ -261,32 +254,31 @@ namespace GB
                         {
                             pixel = (((b2 >> (7 - _x)) & 0x01) << 1) | ((b1 >> (7 - _x)) & 0x01);
                         }
-                        //if (pixel != 0)
-                        {
-                            pixel = (pixel == 0 ? -1 : ((attr & 0x10) == 0x10) ? palette1lookup[pixel] : palette0lookup[pixel]) & 0xff;
-                            //if (pixel != 0)
-                            {
-                                int background = (lineData[x] >> 24);
-                                if ((lineData[x] & 0xffff) == 0x00ff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
-                                else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
-                            }
-                        }
+                        // get the correct palette for this pixel
+                        pixel = (pixel == 0 ? -1 : ((attr & 0x10) == 0x10) ? palette1lookup[pixel] : palette0lookup[pixel]) & 0xff;
+                        // now merge the pixel information into the line data (which already contains background information)
+                        int background = (lineData[x] >> 24);
+                        // taking care of order depending on the spriteX position
+                        if ((lineData[x] & 0xffff) == 0x00ff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
+                        else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
                     }
                 }
             }
 
+            // TODO:  lineData could just be a 144x160 int array to be passed to a shader
+            // Then this routine can be done on the GPU very easily
             for (int i = 0, p = y * 160 * 4; i < 160; i++, p += 4)
             {
                 if (lineData[i] == -1) continue;
                 int pixel = lineData[i] & 0xff;
                 int attr = (lineData[i] >> 16) & 0xff;
                 int background = (lineData[i] >> 24) & 0xff;
-                //if ((background > 0 && pixel == 0) || (background == 0 && pixel > 0 && (attr & 0x80) == 0x80))
+
                 if (background < 4 && (pixel == 0xff || (background > 0 && (attr & 0x80) == 0x80)))
                 {
                     Array.Copy(activePalette[background], 0, backgroundTexture, p, 4);
                 }
-                else if (pixel < 4 && (pixel > 0 || (attr & 0x80) == 0x00))
+                else if (pixel < 4)
                 {
                     Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
                 }
@@ -298,7 +290,7 @@ namespace GB
         int[] palette1lookup = new int[4];
         int[] lineData = new int[160];
 
-        private bool Tick4mhz()
+        private bool Tick4mhz(bool displayActive)
         {
             clkCtr++;
             var ff41 = _ram.SpecialPurpose[0x0141];
@@ -323,7 +315,7 @@ namespace GB
                 case LCDMode.HBlank:
                     if (clkCtr == 204)
                     {
-                        DrawLine(lineCtr);
+                        if (displayActive) DrawLine(lineCtr);
 
                         if (lineCtr == 143)
                         {
@@ -359,7 +351,7 @@ namespace GB
                             }
                             else _ram[0xff41] &= 0b11111011;
                             clkCtr = 0;
-                            return true;
+                            return displayActive;
                         }
                         else
                         {
