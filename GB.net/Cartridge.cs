@@ -69,6 +69,8 @@ namespace GB
         private int mbc1_4000_bank, mbc1_a000_bank;
         private int mbc1_16_8_offset;
 
+        private int mbc3_register0, mbc3_register1, mbc3_register2, mbc3_register3;
+
         public bool WriteProtected
         {
             get { return !mbc1_enable_bank; }
@@ -79,14 +81,44 @@ namespace GB
         public byte ExternalRAM(int address)
         {
             if (RAMSize == 0) return (byte)255;
-            else return externalRam[address % externalRam.Length];
+            else
+            {
+                if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
+                {
+                    return externalRam[address % externalRam.Length];
+                }
+                else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
+                {
+                    int addr = (mbc3_register2 * 8192) + address;
+                    return externalRam[addr];
+                }
+                else
+                {
+                    return externalRam[address % externalRam.Length];
+                }
+            }
         }
 
         public void SetExternalRAM(int address, byte value)
         {
-            // TODO:  Support banking of the RAM
             if (RAMSize == 0) return;
-            else externalRam[address % externalRam.Length] = value;
+            else
+            {
+                if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
+                {
+                    // TODO:  Support banking of the RAM
+                    externalRam[address % externalRam.Length] = value;
+                }
+                else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
+                {
+                    int addr = (mbc3_register2 * 8192) + address;
+                    externalRam[addr] = value;
+                }
+                else
+                {
+                    externalRam[address % externalRam.Length] = value;
+                }
+            }
         }
 
         public byte this[int a]
@@ -101,6 +133,18 @@ namespace GB
                         if (bank == 0x20 || bank == 0x40 || bank == 0x60)
                             bank = 1;
                         int address = (0x4000 * (bank - 1) + a);
+                        return data[address % data.Length];
+                    }
+                    else
+                    {
+                        return data[a];
+                    }
+                }
+                else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
+                {
+                    if (a >= 0x4000)
+                    {
+                        int address = (0x4000 * (mbc3_register1 - 1) + a);
                         return data[address % data.Length];
                     }
                     else
@@ -142,9 +186,29 @@ namespace GB
                         }
                     }
                 }
+                else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
+                {
+                    if (a >= 0x000 && a <= 0x1fff)
+                    {
+                        mbc3_register0 = value;
+                    }
+                    else if (a >= 0x2000 && a <= 0x3fff)
+                    {
+                        mbc3_register1 = Math.Max(1, value & 0x7f);
+                    }
+                    else if (a >= 0x4000 && a <= 0x5fff)
+                    {
+                        mbc3_register2 = value;
+                    }
+                    else if (a >= 0x6000 && a <= 0x7ffff)
+                    {
+                        mbc3_register3 = value;
+                    }
+                }
                 else
                 {
-                    data[a] = value;
+                    // ROM is read only!
+                    //data[a] = value;
                 }
             }
         }
