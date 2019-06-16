@@ -547,7 +547,7 @@ namespace GB
                     RAM[0xff0f] ^= mask;
                     return true;
                 }
-                else if (halted || stopped)
+                else if (stopped)
                 {
                     RAM[0xff0f] ^= mask;
                     return true;
@@ -557,7 +557,7 @@ namespace GB
             return false;
         }
 
-        private bool halted = false, stopped = false;
+        private bool halted = false, stopped = false, haltBug = false;
         private static List<byte> specialRegistersUsed = new List<byte>();
 
         public List<ushort> Breakpoints { get; private set; }
@@ -617,7 +617,14 @@ namespace GB
 
             byte opcode = RAM[PC];
             yield return null;  // opcode fetch takes 1 cycle
-            PC++;
+            if (haltBug)
+            {
+                haltBug = false;
+            }
+            else
+            {
+                PC++;
+            }
 
             byte lowNibble = (byte)(opcode & 0x0f);
             byte op2;
@@ -643,11 +650,19 @@ namespace GB
                         op2 = GetCommonOp2((byte)(opcode & 0x07));
                         if (opcode == 0x76) // HALT
                         {
-                            // TODO:  Increment program counter past this once it resumes from the interrupt handler
-                            halted = true;
-                            while (!CheckInterrupts())
-                                yield return null;
-                            halted = false;
+                            if (!IME && !nextIME)
+                            {
+                                haltBug = true;
+                            }
+                            else
+                            {
+                                IME = nextIME;
+                                halted = true;
+                                while (!CheckInterrupts())
+                                    yield return null;
+                                halted = false;
+                                yield break;
+                            }
                         }
                         else if (opcode < 0x78 || opcode == 0x7E)
                         {
