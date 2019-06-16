@@ -100,6 +100,14 @@ namespace GB
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
                     else if (a == 0xff00) return GetJoyPad();
                     else if (a == 0xff40) return (byte)(specialPurpose[0x140] | 0x01);
+                    else if (a == 0xff04)
+                    {
+                        return specialPurpose[0x104];
+                    }
+                    else if (a == 0xff0f)
+                    {
+                        return (byte)(specialPurpose[0x10f] | 0xE0);
+                    }
                     else if (a == 0xff05)
                     {
                         return specialPurpose[a & 511];
