@@ -517,10 +517,10 @@ namespace GB
         {
             if ((ie & mask) == mask)
             {
-                if (IME || halted)
-                {
-                    halted = false;
+                if (halted) halted = false;
 
+                if (IME)
+                {
                     // service interrupt normally
                     nextIME = IME = false;
                     RAM[--SP] = (byte)((pc >> 8) & 0xff);
@@ -554,7 +554,7 @@ namespace GB
                     RAM[0xff0f] ^= mask;
                     return true;
                 }
-                else RAM[0xff0f] ^= mask;
+                //else RAM[0xff0f] ^= mask;
             }
             return false;
         }
@@ -661,6 +661,8 @@ namespace GB
                             if (!IME && !nextIME)
                             {
                                 haltBug = true;
+                                halted = true;
+                                yield break;
                             }
                             else
                             {
