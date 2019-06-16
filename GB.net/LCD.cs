@@ -26,6 +26,8 @@ namespace GB
 
         public bool VBlankInterrupt { get; set; }
 
+        public bool StatInterrupt { get; set; }
+
         public enum LCDMode
         {
             HBlank = 0,
@@ -292,6 +294,7 @@ namespace GB
         private bool Tick4mhz()
         {
             clkCtr++;
+            var ff41 = _ram.SpecialPurpose[0x0141];
 
             switch (lcdMode)
             {
@@ -305,6 +308,7 @@ namespace GB
                 case LCDMode.Mode3:
                     if (clkCtr == 172)
                     {
+                        if ((ff41 & 0x08) == 0x08) StatInterrupt = true;
                         lcdMode = LCDMode.HBlank;
                         clkCtr = 0;
                     }
@@ -316,13 +320,18 @@ namespace GB
 
                         if (lineCtr == 143)
                         {
+                            if ((ff41 & 0x10) == 0x10) StatInterrupt = true;
                             lcdMode = LCDMode.VBlank;
                             VBlankInterrupt = true;
                         }
                         else lcdMode = LCDMode.Mode2;
                         lineCtr++;
                         _ram.SetFF44(lineCtr);
-                        if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                        if (_ram[0xff45] == lineCtr)
+                        {
+                            _ram[0xff41] |= 0x04;
+                            if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
+                        }
                         else _ram[0xff41] &= 0b11111011;
                         clkCtr = 0;
                     }
@@ -332,10 +341,15 @@ namespace GB
                     {
                         if (lineCtr == 153)
                         {
+                            if ((ff41 & 0x20) == 0x20) StatInterrupt = true;
                             lcdMode = LCDMode.Mode2;
                             lineCtr = 0;
                             _ram.SetFF44(lineCtr);
-                            if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                            if (_ram[0xff45] == lineCtr)
+                            {
+                                _ram[0xff41] |= 0x04;
+                                if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
+                            }
                             else _ram[0xff41] &= 0b11111011;
                             clkCtr = 0;
                             return true;
@@ -344,7 +358,11 @@ namespace GB
                         {
                             lineCtr++;
                             _ram.SetFF44(lineCtr);
-                            if (_ram[0xff45] == lineCtr) _ram[0xff41] |= 0x04;
+                            if (_ram[0xff45] == lineCtr)
+                            {
+                                _ram[0xff41] |= 0x04;
+                                if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
+                            }
                             else _ram[0xff41] &= 0b11111011;
                             clkCtr = 0;
                         }

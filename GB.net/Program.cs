@@ -243,13 +243,11 @@ namespace GB
                                 ram[0xff0f] |= 0x01;
                                 lcd.VBlankInterrupt = false;
                             }
-                            var ff41 = ram[0xff41];
-                            bool statInterrupt = false;
-                            if ((ff41 & 0x08) == 0x08 && lcd.CurrentMode == LCD.LCDMode.HBlank) statInterrupt = true;
-                            if ((ff41 & 0x10) == 0x10 && lcd.CurrentMode == LCD.LCDMode.VBlank) statInterrupt = true;
-                            if ((ff41 & 0x20) == 0x20 && lcd.CurrentMode == LCD.LCDMode.Mode2) statInterrupt = true;
-                            if ((ff41 & 0x44) == 0x44) statInterrupt = true;
-                            if (statInterrupt) ram[0xff0f] |= 0x02;
+                            if (lcd.StatInterrupt)
+                            {
+                                ram[0xff0f] |= 0x02;
+                                lcd.StatInterrupt = false;
+                            }
                             var ff00 = (byte)(ram.GetJoyPad() & 0x0f);
                             var xorff00 = ff00 ^ joypad;
                             if (xorff00 != 0 && (joypad & xorff00) != 0) ram[0xff0f] |= 0x10;
