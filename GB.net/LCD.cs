@@ -155,6 +155,8 @@ namespace GB
                 palette1lookup[i] = (palette1 >> (2 * i)) & 0x03;
             }
 
+            for (int i = 0; i < 160; i++) lineData[i] = -1;
+
             // draw the background first
             int scx = _ram[0xff43];
             int scy = _ram[0xff42];
@@ -166,7 +168,7 @@ namespace GB
             // this is going to be slow!
             for (int x = 0; x < 160;)
             {
-                int p = x * 4 + y * 160 * 4;
+                //int p = x * 4 + y * 160 * 4;
 
                 int tx = (x + scx) & 255;
                 int ty = (y + scy) & 255;
@@ -194,17 +196,19 @@ namespace GB
                     {
                         int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                         pixel = palettebglookup[pixel];
-                        Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
-                        p += 4;
+                        /*Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                        p += 4;*/
+                        lineData[x++] = (pixel << 24) | 0xff;
                     }
 
-                    x += 8;
+                    //x += 8;
                 }
                 else
                 {
                     int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                     pixel = palettebglookup[pixel];
-                    Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                    //Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                    lineData[x] = (pixel << 24) | 0xff;
 
                     x++;
                 }
@@ -214,9 +218,6 @@ namespace GB
             int displayedSprites = 0;
 
             Span<byte> oamMemory = new Span<byte>(_ram.SpecialPurpose, 0, 256);
-
-            Array.Clear(activeSprites, 0, 10);
-            for (int i = 0; i < 160; i++) lineData[i] = -1;
 
             for (int i = 0; i < 40; i++)
             {
@@ -262,11 +263,12 @@ namespace GB
                         }
                         //if (pixel != 0)
                         {
-                            pixel = (pixel == 0 ? -1 : ((attr & 0x10) == 0x10) ? palette1lookup[pixel] : palette0lookup[pixel]);
+                            pixel = (pixel == 0 ? -1 : ((attr & 0x10) == 0x10) ? palette1lookup[pixel] : palette0lookup[pixel]) & 0xff;
                             //if (pixel != 0)
                             {
-                                if (lineData[x] == -1) lineData[x] = pixel | (spriteX << 8) | (attr << 16);
-                                else if ((lineData[x] >> 8) > spriteX && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16);
+                                int background = (lineData[x] >> 24);
+                                if ((lineData[x] & 0xffff) == 0x00ff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
+                                else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
                             }
                         }
                     }
@@ -278,7 +280,13 @@ namespace GB
                 if (lineData[i] == -1) continue;
                 int pixel = lineData[i] & 0xff;
                 int attr = (lineData[i] >> 16) & 0xff;
-                if (pixel > 0 || (attr & 0x80) == 0x00)
+                int background = (lineData[i] >> 24) & 0xff;
+                //if ((background > 0 && pixel == 0) || (background == 0 && pixel > 0 && (attr & 0x80) == 0x80))
+                if (background < 4 && (pixel == 0xff || (background > 0 && (attr & 0x80) == 0x80)))
+                {
+                    Array.Copy(activePalette[background], 0, backgroundTexture, p, 4);
+                }
+                else if (pixel < 4 && (pixel > 0 || (attr & 0x80) == 0x00))
                 {
                     Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
                 }
@@ -288,7 +296,6 @@ namespace GB
         int[] palettebglookup = new int[4];
         int[] palette0lookup = new int[4];
         int[] palette1lookup = new int[4];
-        int[] activeSprites = new int[10];
         int[] lineData = new int[160];
 
         private bool Tick4mhz()
