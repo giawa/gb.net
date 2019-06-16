@@ -339,11 +339,11 @@ namespace GB
             RAM[--SP] = (byte)(nn & 0xff);
         }
 
-        private void call(ushort nn)
+        /*private void call(ushort nn)
         {
             push(PC);
             PC = nn;
-        }
+        }*/
 
         private void rl(ref byte register)
         {
@@ -915,10 +915,12 @@ namespace GB
                                     yield return null;
                                     if ((F & 0x80) == 0x00)
                                     {
-                                        call(imm);
+                                        yield return null;  // 1 clock internal delay
+                                        RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                         yield return null;
-                                        yield return null;
-                                        yield return null;
+                                        RAM[--SP] = (byte)(PC & 0xff);
+                                        yield return null;  // 1 clock to set PC
+                                        PC = imm;
                                     }
                                 }
                                 else if (opcode == 0xD4)
@@ -929,10 +931,12 @@ namespace GB
                                     yield return null;
                                     if ((F & 0x10) == 0x00)
                                     {
-                                        call(imm);
+                                        yield return null;  // 1 clock internal delay
+                                        RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                         yield return null;
-                                        yield return null;
-                                        yield return null;
+                                        RAM[--SP] = (byte)(PC & 0xff);
+                                        yield return null;  // 1 clock to set PC
+                                        PC = imm;
                                     }
                                 }
                                 else opcodeName = "undefined";
@@ -1024,13 +1028,15 @@ namespace GB
                                 }
                                 else
                                 {
-                                    if (opcode == 0xC7) call(0x0000);  // RST 00h
-                                    else if (opcode == 0xD7) call(0x0010);  // RST 10h
-                                    else if (opcode == 0xE7) call(0x0020);  // RST 20h
-                                    else if (opcode == 0xF7) call(0x0030);  // RST 30h
+                                    // C7 = RST 00h, D7 = RST 10h, E7 = RST 20h, F7 = RST 30h
+                                    ushort rst = (ushort)((opcode & 0xf0) - 0xC0);
+
+                                    yield return null;  // 1 clock internal delay
+                                    RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                     yield return null;
-                                    yield return null;
-                                    yield return null;
+                                    RAM[--SP] = (byte)(PC & 0xff);
+                                    yield return null;  // 1 clock to set PC
+                                    PC = rst;
                                 }
                                 break;
                             case 0x08:
@@ -1144,15 +1150,26 @@ namespace GB
                                 }
                                 break;
                             case 0x0A:
-                                //if (opcode < 0x4A) yield return null;
                                 if (opcode == 0x0A)
                                 {
                                     A = RAM[BC];        // LD A,(BC)
                                     yield return null;
                                 }
-                                else if (opcode == 0x1A) A = RAM[DE];   // LD A,(DE)
-                                else if (opcode == 0x2A) A = RAM[HL++]; // LD A,(HL++)
-                                else if (opcode == 0x3A) A = RAM[HL--]; // LD A,(HL--)
+                                else if (opcode == 0x1A)
+                                {
+                                    A = RAM[DE];   // LD A,(DE)
+                                    yield return null;
+                                }
+                                else if (opcode == 0x2A)
+                                {
+                                    A = RAM[HL++]; // LD A,(HL++)
+                                    yield return null;
+                                }
+                                else if (opcode == 0x3A)
+                                {
+                                    A = RAM[HL--]; // LD A,(HL--)
+                                    yield return null;
+                                }
                                 else if (opcode == 0xCA)
                                 {
                                     // JP Z,a16
@@ -1220,10 +1237,12 @@ namespace GB
                                     yield return null;
                                     if ((F & 0x80) == 0x80)
                                     {
-                                        call(imm);
+                                        yield return null;  // 1 clock internal delay
+                                        RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                         yield return null;
-                                        yield return null;
-                                        yield return null;
+                                        RAM[--SP] = (byte)(PC & 0xff);
+                                        yield return null;  // 1 clock to set PC
+                                        PC = imm;
                                     }
                                 }
                                 else if (opcode == 0xDC)
@@ -1234,10 +1253,12 @@ namespace GB
                                     yield return null;
                                     if ((F & 0x10) == 0x10)
                                     {
-                                        call(imm);
+                                        yield return null;  // 1 clock internal delay
+                                        RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                         yield return null;
-                                        yield return null;
-                                        yield return null;
+                                        RAM[--SP] = (byte)(PC & 0xff);
+                                        yield return null;  // 1 clock to set PC
+                                        PC = imm;
                                     }
                                 }
                                 else opcodeName = "undefined";
@@ -1251,11 +1272,13 @@ namespace GB
                                 {
                                     yield return null;  // 2 clocks to load imm16
                                     yield return null;
-                                    ushort nextPC = imm16();
-                                    yield return null;  // 2 clocks to push the stack pointer
+                                    ushort imm = imm16();
+                                    yield return null;  // 1 clock internal delay
+                                    RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                     yield return null;
-                                    call(nextPC);
+                                    RAM[--SP] = (byte)(PC & 0xff);
                                     yield return null;  // 1 clock to set PC
+                                    PC = imm;
                                 }
                                 else opcodeName = "undefined";
                                 break;
@@ -1293,13 +1316,15 @@ namespace GB
                                 }
                                 else
                                 {
+                                    // 0xCF = RST 08h, 0xDF = RST 18h, 0xEF = RST 28h, 0xFF = RST 38h
+                                    ushort rst = (ushort)((opcode & 0xf0) - 0xC0 + 0x08);
+
+                                    yield return null;  // 1 clock internal delay
+                                    RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                     yield return null;
-                                    yield return null;
-                                    yield return null;
-                                    if (opcode == 0xCF) call(0x0008);  // RST 08h
-                                    else if (opcode == 0xDF) call(0x0018);  // RST 18h
-                                    else if (opcode == 0xEF) call(0x0028);  // RST 28h
-                                    else if (opcode == 0xFF) call(0x0038);  // RST 38h
+                                    RAM[--SP] = (byte)(PC & 0xff);
+                                    yield return null;  // 1 clock to set PC
+                                    PC = rst;
                                 }
                                 break;
                         }
