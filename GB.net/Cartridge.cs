@@ -41,6 +41,8 @@ namespace GB
 
         public byte[] data;
 
+        public int RAMSize { get; private set; }
+
         public Cartridge(string file)
         {
             using (BinaryReader reader = new BinaryReader(new FileStream(file, FileMode.Open)))
@@ -48,32 +50,58 @@ namespace GB
                 data = reader.ReadBytes((int)reader.BaseStream.Length);
 
                 Type = (CartridgeType)data[0x147];
+                switch (data[0x149])
+                {
+                    case 0x00: RAMSize = 0; break;
+                    case 0x01: RAMSize = 2048; break;
+                    case 0x02: RAMSize = 8192; break;
+                    case 0x03: RAMSize = 32768; break;
+                    case 0x04: RAMSize = 16 * 8192; break;
+                    case 0x05: RAMSize = 8 * 8192; break;
+                }
             }
+
+            externalRam = new byte[RAMSize];
+            for (int i = 0; i < externalRam.Length; i++) externalRam[i] = 0xff;
         }
 
         private bool mbc1_4_32_mode, mbc1_enable_bank;
         private int mbc1_4000_bank, mbc1_a000_bank;
         private int mbc1_16_8_offset;
 
+        public bool WriteProtected
+        {
+            get { return !mbc1_enable_bank; }
+        }
+
+        private byte[] externalRam;
+
+        public byte ExternalRAM(int address)
+        {
+            if (RAMSize == 0) return (byte)255;
+            else return externalRam[address % externalRam.Length];
+        }
+
+        public void SetExternalRAM(int address, byte value)
+        {
+            // TODO:  Support banking of the RAM
+            if (RAMSize == 0) return;
+            else externalRam[address % externalRam.Length] = value;
+        }
+
         public byte this[int a]
         {
             get
             {
-                if (Type == CartridgeType.MBC1)
+                if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
                 {
                     if (a >= 0x4000)
                     {
-                        if (mbc1_4_32_mode)
-                        {
-                            // TODO:  Implement RAM?
-                            int bank = Math.Max(1, mbc1_4000_bank) - 1;
-                            return data[0x4000 * bank + a];
-                        }
-                        else
-                        {
-                            int bank = Math.Max(1, mbc1_4000_bank + 0x20 * mbc1_a000_bank) - 1;
-                            return data[0x4000 * bank + a];
-                        }
+                        int bank = Math.Max(1, mbc1_4000_bank | mbc1_16_8_offset);
+                        if (bank == 0x20 || bank == 0x40 || bank == 0x60)
+                            bank = 1;
+                        int address = (0x4000 * (bank - 1) + a);
+                        return data[address % data.Length];
                     }
                     else
                     {
@@ -87,25 +115,31 @@ namespace GB
             }
             set
             {
-                if (Type == CartridgeType.MBC1)
+                if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
                 {
                     if (a >= 0x6000 && a <= 0x7fff)
+                    {
                         mbc1_4_32_mode = (value & 0x01) == 0x01;
-                    else if (a >= 0x2000 && a <= 0x3fff)
-                        mbc1_4000_bank = value & 0x1f;
-                    else if (mbc1_4_32_mode)
-                    {
-                        // in 4/32 mode using an MBC1 memory model
-                        if (a >= 0x4000 && a <= 0x5fff)
-                            mbc1_a000_bank = value & 0x03;
-                        else if (a >= 0x000 && a <= 0x1fff)
-                            mbc1_enable_bank = (value & 0x0f) == 0x0a;
+                        if (mbc1_4_32_mode) mbc1_16_8_offset = 0;
                     }
-                    else
+                    else if (a >= 0x2000 && a <= 0x3fff)
                     {
-                        // in 16/8 mode using an MBC1 memory model
-                        if (a >= 0x4000 && a <= 0x5fff)
-                            mbc1_16_8_offset = (value << 6);
+                        mbc1_4000_bank = value & 0x1f;
+                    }
+                    else if (a >= 0x0000 && a <= 0x1fff)
+                    {
+                        mbc1_enable_bank = (value & 0x0f) == 0x0a;
+                    }
+                    else if (a >= 0x4000 && a <= 0x5fff)
+                    {
+                        if (mbc1_4_32_mode)
+                        {
+                            mbc1_a000_bank = value & 0x03;
+                        }
+                        else
+                        {
+                            mbc1_16_8_offset = ((value & 0x03) << 6);
+                        }
                     }
                 }
                 else

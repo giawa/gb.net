@@ -95,7 +95,8 @@ namespace GB
                 {
                     if (a < 256 && firstBoot) return bootstrap[a];
                     else if (a < 32768) return Cartridge[a];
-                    else if (a < 0xC000) return videoAndExternalRam[a - 0x8000];
+                    else if (a < 0xA000) return videoRam[a - 0x8000];
+                    else if (a < 0xC000) return Cartridge.ExternalRAM(a - 0xA000);
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
                     else if (a == 0xff00) return GetJoyPad();
                     else if (a == 0xff40) return (byte)(specialPurpose[0x140] | 0x01);
@@ -144,8 +145,14 @@ namespace GB
 
                 if (dmaCtr == 161 || dmaCtr == -1)
                 {
-                    if (a < 32768) Cartridge[a] = value;
-                    else if (a < 0xC000) videoAndExternalRam[a - 0x8000] = value;
+                    if (a < 32768)
+                        Cartridge[a] = value;
+                    else if (a < 0xA000) videoRam[a - 0x8000] = value;
+                    else if (a < 0xC000)
+                    {
+                        if (!Cartridge.WriteProtected)
+                            Cartridge.SetExternalRAM(a - 0xA000, value);
+                    }
                     else if (a < 0xFE00) internalRam[(a - 0xC000) % 8192] = value;
                     else specialPurpose[a & 511] = value;
                 }
@@ -168,14 +175,14 @@ namespace GB
             specialPurpose[0xff04 & 511] = value;
         }
 
-        public byte[] VideoMemory { get { return videoAndExternalRam; } }
+        public byte[] VideoMemory { get { return videoRam; } }
 
         public byte[] SpecialPurpose { get { return specialPurpose; } }
 
         //public byte[] Cartridge { get; set; }
         public Cartridge Cartridge { get; set; }
 
-        private byte[] videoAndExternalRam = new byte[16384];
+        private byte[] videoRam = new byte[8192];
         private byte[] internalRam = new byte[8192];
         private byte[] specialPurpose = new byte[512];
 
@@ -185,7 +192,7 @@ namespace GB
             Cartridge = null;
 
             Random generator = new Random(Environment.TickCount);
-            generator.NextBytes(new Span<byte>(videoAndExternalRam, 0, 8192));
+            generator.NextBytes(videoRam);
         }
 
         public Memory()
@@ -220,7 +227,7 @@ namespace GB
                 {
                     byte ff46 = specialPurpose[0x0146];
                     int address = 0x100 * ff46 + dmaCtr;
-                    byte memory = (address < 32768 ? Cartridge[address] : (address < 0xc000 ? videoAndExternalRam[address - 0x8000] : internalRam[(address - 0xC000) % 8192]));
+                    byte memory = (address < 32768 ? Cartridge[address] : (address < 0xa000 ? videoRam[address - 0x8000] : (address < 0xc000 ? Cartridge.ExternalRAM(address - 0xA000) : internalRam[(address - 0xC000) % 8192])));
                     specialPurpose[dmaCtr] = memory;
                 }
                 dmaCtr++;
