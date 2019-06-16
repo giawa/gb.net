@@ -56,16 +56,16 @@ namespace GB
             return frameComplete;
         }
 
-        public byte[] backgroundTexture = new byte[160 * 144 * 4];
+        public uint[] backgroundTexture = new uint[160 * 144];
 
-        private byte[][] activePalette = new byte[4][];
+        private uint[] activePalette = new uint[4];
 
         private void SetPalette(uint[] palette)
         {
             if (palette.Length != 4) return;
             for (int i = 0; i < 4; i++)
             {
-                activePalette[i] = BitConverter.GetBytes(palette[i]);
+                activePalette[i] = palette[i];//BitConverter.GetBytes(palette[i]);
             }
         }
 
@@ -100,7 +100,7 @@ namespace GB
 
         private byte[] fullBackground = new byte[256 * 256 * 4];
 
-        public byte[] DumpBackground()
+        /*public byte[] DumpBackground()
         {
             var ff40 = _ram[0xff40];
             int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
@@ -135,7 +135,7 @@ namespace GB
             }
 
             return fullBackground;
-        }
+        }*/
 
         private void DrawLine(int y)
         {
@@ -162,8 +162,7 @@ namespace GB
             int scx = _ram[0xff43];
             int scy = _ram[0xff42];
 
-            for (int i = 0; i < 160 * 4; i++)
-                backgroundTexture[i + 160 * 4 * y] = 255;
+            Array.Clear(backgroundTexture, y * 160, 160);
 
             // this is going to be slow!
             for (int x = 0; x < 160;)
@@ -185,8 +184,8 @@ namespace GB
                 int j = ty % 8;
                 int k = 7 - (tx % 8);
 
-                byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
-                byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
+                int b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
+                int b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
 
                 if (k == 7 && (x + 8) < 160)
                 {
@@ -225,7 +224,7 @@ namespace GB
                     var character = oamMemory[i * 4 + 2];
                     var attr = oamMemory[i * 4 + 3];
 
-                    byte b1, b2;
+                    int b1, b2;
                     // check if y is flipped
                     if ((attr & 0x40) == 0x40)
                     {
@@ -267,7 +266,7 @@ namespace GB
 
             // TODO:  lineData could just be a 144x160 int array to be passed to a shader
             // Then this routine can be done on the GPU very easily
-            for (int i = 0, p = y * 160 * 4; i < 160; i++, p += 4)
+            for (int i = 0, p = y * 160; i < 160; i++, p++)
             {
                 if (lineData[i] == -1) continue;
                 int pixel = lineData[i] & 0xff;
@@ -276,24 +275,25 @@ namespace GB
 
                 if (background < 4 && (pixel == 0xff || (background > 0 && (attr & 0x80) == 0x80)))
                 {
-                    Array.Copy(activePalette[background], 0, backgroundTexture, p, 4);
+                    backgroundTexture[p] = activePalette[background];
+                    //Array.Copy(activePalette[background], 0, backgroundTexture, p, 4);
                 }
                 else if (pixel < 4)
                 {
-                    Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
+                    backgroundTexture[p] = activePalette[pixel];
+                    //Array.Copy(activePalette[pixel], 0, backgroundTexture, p, 4);
                 }
             }
         }
 
-        int[] palettebglookup = new int[4];
-        int[] palette0lookup = new int[4];
-        int[] palette1lookup = new int[4];
-        int[] lineData = new int[160];
+        private int[] palettebglookup = new int[4];
+        private int[] palette0lookup = new int[4];
+        private int[] palette1lookup = new int[4];
+        private int[] lineData = new int[160];
 
         private bool Tick4mhz(bool displayActive)
         {
             clkCtr++;
-            var ff41 = _ram.SpecialPurpose[0x0141];
 
             switch (lcdMode)
             {
@@ -307,6 +307,7 @@ namespace GB
                 case LCDMode.Mode3:
                     if (clkCtr == 172)
                     {
+                        var ff41 = _ram.SpecialPurpose[0x0141];
                         if ((ff41 & 0x08) == 0x08) StatInterrupt = true;
                         lcdMode = LCDMode.HBlank;
                         clkCtr = 0;
@@ -319,6 +320,7 @@ namespace GB
 
                         if (lineCtr == 143)
                         {
+                            var ff41 = _ram.SpecialPurpose[0x0141];
                             if ((ff41 & 0x10) == 0x10) StatInterrupt = true;
                             lcdMode = LCDMode.VBlank;
                             VBlankInterrupt = true;
@@ -329,6 +331,7 @@ namespace GB
                         if (_ram[0xff45] == lineCtr)
                         {
                             _ram[0xff41] |= 0x04;
+                            var ff41 = _ram.SpecialPurpose[0x0141];
                             if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                         }
                         else _ram[0xff41] &= 0b11111011;
@@ -340,6 +343,7 @@ namespace GB
                     {
                         if (lineCtr == 153)
                         {
+                            var ff41 = _ram.SpecialPurpose[0x0141];
                             if ((ff41 & 0x20) == 0x20) StatInterrupt = true;
                             lcdMode = LCDMode.Mode2;
                             lineCtr = 0;
@@ -347,6 +351,7 @@ namespace GB
                             if (_ram[0xff45] == lineCtr)
                             {
                                 _ram[0xff41] |= 0x04;
+                                ff41 = _ram.SpecialPurpose[0x0141];
                                 if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                             }
                             else _ram[0xff41] &= 0b11111011;
@@ -360,6 +365,7 @@ namespace GB
                             if (_ram[0xff45] == lineCtr)
                             {
                                 _ram[0xff41] |= 0x04;
+                                var ff41 = _ram.SpecialPurpose[0x0141];
                                 if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                             }
                             else _ram[0xff41] &= 0b11111011;
