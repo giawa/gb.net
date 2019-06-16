@@ -488,7 +488,7 @@ namespace GB
         {
             //RAM[0xff0f] |= Interrupts;
 
-            if (IME || halted || stopped)
+            if (IME || stopped)
             {
                 var IF = RAM[0xff0f];
                 bool vblankInterrupt = (IF & 0x01) == 0x01;
@@ -517,8 +517,10 @@ namespace GB
         {
             if ((ie & mask) == mask)
             {
-                if (IME)
+                if (IME || halted)
                 {
+                    halted = false;
+
                     // service interrupt normally
                     nextIME = IME = false;
                     RAM[--SP] = (byte)((pc >> 8) & 0xff);
@@ -605,6 +607,12 @@ namespace GB
 
         private IEnumerable ExecuteInstruction()
         {
+            if (halted)
+            {
+                yield return null;  // always need at least one clock cycle
+                yield break;
+            }
+
             foreach (var pc in Breakpoints)
             {
                 if (pc == PC)
@@ -658,9 +666,6 @@ namespace GB
                             {
                                 IME = nextIME;
                                 halted = true;
-                                while (!CheckInterrupts())
-                                    yield return null;
-                                halted = false;
                                 yield break;
                             }
                         }
