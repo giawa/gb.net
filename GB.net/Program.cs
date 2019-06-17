@@ -16,7 +16,6 @@ namespace GB
         private static bool mouseleft, mouseright;
         private static int mouseX, mouseY, mouseWheel;
 
-        private static IEnumerator cpuState;
         private static Memory ram;
         private static CPU cpu;
         private static LCD lcd;
@@ -70,8 +69,6 @@ namespace GB
 
             while (running)
             {
-                Stopwatch watch = Stopwatch.StartNew();
-
                 //try
                 {
                     while (SDL.SDL_PollEvent(out sdlEvent) != 0)
@@ -160,7 +157,7 @@ namespace GB
                             }
                             ImGui.EndMenu();
                         }
-                        if (cpuState != null && ImGui.BeginMenu("Emulation"))
+                        if (cpu != null && ImGui.BeginMenu("Emulation"))
                         {
                             if (ImGui.MenuItem("1x Scaling", null, (scaling == 1)))
                             {
@@ -217,16 +214,16 @@ namespace GB
                                 lcd = new LCD(ram);
                                 cpu.LoadCartridge(gamecart);
                                 cpu.SetPC(0x100);
-
-                                cpuState = cpu.CreateStateMachine().GetEnumerator();
                             }
                         }
                     }
 
                     // run a full frame of gameboy data
-                    if (cpuState != null)
+                    if (cpu != null)
                     {
                         bool frameReady = false;
+
+                        Stopwatch watch = Stopwatch.StartNew();
 
                         for (int i = 0; i < Math.Max(speed, 1); i++)
                         {
@@ -246,7 +243,7 @@ namespace GB
                                     }
                                     timer.Tick1MHz();
                                     ram.Tick1MHz();
-                                    cpuState.MoveNext();
+                                    cpu.Tick1MHz();
                                 }
 
                                 // register all interrupts
@@ -276,7 +273,8 @@ namespace GB
                                                     // timing of TMA being transferred to TIMA, then the TMA
                                                     // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
 
-                                cpuState.MoveNext();
+                                
+                                cpu.Tick1MHz();
 
                                 ticks++;
                             }
@@ -284,10 +282,13 @@ namespace GB
                             if (ticks >= 17556 && !frameReady) ;
                             else if (!frameReady)
                             {
-                                cpuState = null;
+                                cpu = null;
                                 break;
                             }
                         }
+
+                        watch.Stop();
+                        //Console.WriteLine("Frame took {0}ms {1} ticks", watch.ElapsedMilliseconds, watch.ElapsedTicks);
 
                         // did the program terminate?
                         if (frameReady)
@@ -338,9 +339,6 @@ namespace GB
                 {
                     Console.WriteLine(e.Message);
                 }*/
-
-                watch.Stop();
-                //Console.WriteLine("Frame took {0}ms", watch.ElapsedMilliseconds);
             }
 
             Gui.Dispose();

@@ -109,37 +109,36 @@ namespace GB
             }
             set
             {
-                if (a == 0xff46)
-                {
-                    dmaCtr = -2;
-                    specialPurpose[a & 511] = value;
-                    Tick1MHz();
-                    return;
-                }
-                if (a == 0xff44)
-                {
-                    specialPurpose[a & 511] = 0;
-                    return;
-                }
-                if (a == 0xff50 && value == 1)
-                {
-                    firstBoot = false;
-                    return;
-                }
-                if (a == 0xff04)
-                {
-                    SetDIV(value);
-                    return;
-                }
-                if (a == 0xff05)
-                {
-                    if (!timaDelayed) specialPurpose[0x105] = value;
-                    return;
-                }
-
                 if (a >= 0xff00)
                 {
-                    if (a == 0xff10) return;
+                    if (a == 0xff46)
+                    {
+                        dmaCtr = -2;
+                        specialPurpose[a & 511] = value;
+                        Tick1MHz();
+                        return;
+                    }
+                    else if (a == 0xff44)
+                    {
+                        specialPurpose[a & 511] = 0;
+                        return;
+                    }
+                    else if (a == 0xff50 && value == 1)
+                    {
+                        firstBoot = false;
+                        return;
+                    }
+                    else if (a == 0xff04)
+                    {
+                        SetDIV(value);
+                        return;
+                    }
+                    else if (a == 0xff05)
+                    {
+                        if (!timaDelayed) specialPurpose[0x105] = value;
+                        return;
+                    }
+                    else if (a == 0xff10) return;
                     else if (a == 0xff1A) return;          // NR30
                     else if (a == 0xff1C) return;          // NR32
                     else if (a == 0xff20) return;    // NR41
