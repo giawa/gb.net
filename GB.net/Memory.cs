@@ -98,26 +98,12 @@ namespace GB
                     else if (a < 0xA000) return videoRam[a - 0x8000];
                     else if (a < 0xC000) return Cartridge.ExternalRAM(a - 0xA000);
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
-                    else if (a == 0xff00) return GetJoyPad();
-                    else if (a == 0xff40) return (byte)(specialPurpose[0x140] | 0x01);
-                    else if (a == 0xff04)
-                    {
-                        return specialPurpose[0x104];
-                    }
-                    else if (a == 0xff0f)
-                    {
-                        return (byte)(specialPurpose[0x10f] | 0xE0);
-                    }
-                    else if (a == 0xff05)
-                    {
-                        return specialPurpose[a & 511];
-                    }
+                    else if (a == 0xff00) return (byte)(GetJoyPad() | 0b11000000);          // P1
                     else return specialPurpose[a & 511];
                 }
                 else
                 {
-                    if (a < 0xff00)
-                        return 255;
+                    if (a < 0xff00) return 255;
                     else return specialPurpose[a & 511];
                 }
             }
@@ -151,6 +137,24 @@ namespace GB
                     return;
                 }
 
+                if (a >= 0xff00)
+                {
+                    if (a == 0xff10) return;
+                    else if (a == 0xff1A) return;          // NR30
+                    else if (a == 0xff1C) return;          // NR32
+                    else if (a == 0xff20) return;    // NR41
+                    else if (a == 0xff23) return;          // NR44
+                    else if (a == 0xff26) return;          // NR52
+                    else if (a == 0xff40) value |= 0x01;//return (byte)(specialPurpose[0x140] | 0x01);
+                    else if (a == 0xff41) value |= 0x80;//return (byte)(0x80 | (specialPurpose[0x141] & 0x7f)); // STAT
+                    else if (a == 0xff03 || a == 0xff08 || (a >= 0xff09 && a <= 0xff0e)) return;    // unmapped
+                    else if (a == 0xff15 || a == 0xff1f || (a >= 0xff27 && a <= 0xff29)) return;    // unmapped
+                    else if (a >= 0xff4c && a <= 0xff7f) return;    // unmapped
+                    else if (a == 0xff0f) value |= 0xE0;
+                    else if (a == 0xff07) value |= 0xf8;
+                    else if (a == 0xff02) value |= 0b01111110;
+                }
+
                 if (dmaCtr == 161 || dmaCtr == -1)
                 {
                     if (a < 32768)
@@ -166,8 +170,7 @@ namespace GB
                 }
                 else
                 {
-                    if (a < 0xff00)
-                        return;
+                    if (a < 0xff00) return;
                     else specialPurpose[a & 511] = value;
                 }
             }
@@ -201,6 +204,23 @@ namespace GB
 
             Random generator = new Random(Environment.TickCount);
             generator.NextBytes(videoRam);
+
+            specialPurpose[0x102] = 0b01111110;
+            specialPurpose[0x110] = 0x80;
+            specialPurpose[0x11A] = 0x7F;
+            specialPurpose[0x11C] = 0x9F;
+            specialPurpose[0x120] = 0b11000000;
+            specialPurpose[0x123] = 0x3f;
+            specialPurpose[0x126] = 0x70;
+            specialPurpose[0x140] = 0x01;
+            specialPurpose[0x141] = 0x80;
+            specialPurpose[0x103] = 0xff;
+            specialPurpose[0x108] = 0xff;
+            for (int i = 0x109; i <= 0x10e; i++) specialPurpose[i] = 0xff;
+            specialPurpose[0x115] = 0xff;
+            specialPurpose[0x11f] = 0xff;
+            for (int i = 0x127; i <= 0x129; i++) specialPurpose[i] = 0xff;
+            for (int i = 0x14c; i <= 0x17f; i++) specialPurpose[i] = 0xff;
         }
 
         public Memory()
