@@ -259,8 +259,8 @@ namespace GB
                         // now merge the pixel information into the line data (which already contains background information)
                         int background = (lineData[x] >> 24);
                         // taking care of order depending on the spriteX position
-                        if ((lineData[x] & 0xffff) == 0x00ff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
-                        else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
+                        if ((lineData[x] & 0xff) == 0xff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
+                        else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 255 && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
                     }
                 }
             }
