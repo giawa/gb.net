@@ -66,6 +66,8 @@ namespace GB
             bool demoWindow = true;
             byte joypad = 0x0f;
 
+            int scaling = 2, speed = 1;
+
             while (running)
             {
                 Stopwatch watch = Stopwatch.StartNew();
@@ -150,36 +152,47 @@ namespace GB
                                 openDialog = new FileDialog();
                                 ImGui.SetNextWindowPos(new Vector2(100, 100));
                             }
-                            if (ImGui.MenuItem("Load Test ROM"))
-                            {
-                                //Disassembler temp = new Disassembler(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb", 0x200);
-                                Cartridge tetris = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\tetris.gb");
-                                Cartridge mario = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\mario.gb");
-                                Cartridge harvestMoon = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\harvestmoon.gb");
-                                Cartridge drmario = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\drmario.gb");
-                                Cartridge fullTest = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\cpu_instrs\cpu_instrs.gb");
-                                Cartridge instrTiming = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\instr_timing\instr_timing.gb");
-                                Cartridge interruptTiming = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\blargg_tests\interrupt_time\interrupt_time.gb");
-                                Cartridge mooneye = new Cartridge(@"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1\mooneye\manual-only\sprite_priority.gb");
-                                ram = new Memory();
-                                timer = new Timer(ram);
-                                ram.Timer = timer;
-                                cpu = new CPU(ram);
-                                lcd = new LCD(ram);
-                                cpu.LoadCartridge(fullTest);
-                                cpu.SetPC(0x100);
-                                //cpu.Breakpoints.Add(0x03EC);
-                                //cpu.Breakpoints.Add(0x2847);
-                                cpu.Breakpoints.Add(0xC056);
-
-                                // run a few clock cycles
-                                cpuState = cpu.CreateStateMachine().GetEnumerator();
-                            }
                             
                             ImGui.Separator();
                             if (ImGui.MenuItem("Exit"))
                             {
                                 running = false;
+                            }
+                            ImGui.EndMenu();
+                        }
+                        if (cpuState != null && ImGui.BeginMenu("Emulation"))
+                        {
+                            if (ImGui.MenuItem("1x Scaling", null, (scaling == 1)))
+                            {
+                                scaling = 1;
+                            }
+                            if (ImGui.MenuItem("2x Scaling", null, (scaling == 2)))
+                            {
+                                scaling = 2;
+                            }
+                            if (ImGui.MenuItem("3x Scaling", null, (scaling == 3)))
+                            {
+                                scaling = 3;
+                            }
+                            if (ImGui.MenuItem("4x Scaling", null, (scaling == 4)))
+                            {
+                                scaling = 4;
+                            }
+                            ImGui.Separator();
+                            if (ImGui.MenuItem("1x Speed", null, (speed == 1)))
+                            {
+                                speed = 1;
+                                SDL.SDL_GL_SetSwapInterval(0);
+                            }
+                            if (ImGui.MenuItem("2x Speed", null, (speed == 2)))
+                            {
+                                speed = 2;
+                                SDL.SDL_GL_SetSwapInterval(0);
+                            }
+                            if (ImGui.MenuItem("Maximum Speed", null, (speed == 0)))
+                            {
+                                speed = 0;
+                                SDL.SDL_GL_SetSwapInterval(0);
                             }
                             ImGui.EndMenu();
                         }
@@ -214,60 +227,70 @@ namespace GB
                     if (cpuState != null)
                     {
                         bool frameReady = false;
-                        int ticks = 0;
 
-                        while (!frameReady && ticks < 17556)// && cpuState.MoveNext())
+                        for (int i = 0; i < Math.Max(speed, 1); i++)
                         {
-                            // support GBC double speed
-                            if ((ram[0xff4d] & 0x80) == 0x80)
+                            frameReady = false;
+                            int ticks = 0;
+
+                            while (!frameReady && ticks < 17556)// && cpuState.MoveNext())
                             {
+                                // support GBC double speed
+                                if ((/*ram[0xff4d]*/ram.SpecialPurpose[0x14d] & 0x80) == 0x80)
+                                {
+                                    // register all interrupts
+                                    if (timer.TimerInterrupt)
+                                    {
+                                        ram[0xff0f] |= 0x04;
+                                        timer.TimerInterrupt = false;
+                                    }
+                                    timer.Tick1MHz();
+                                    ram.Tick1MHz();
+                                    cpuState.MoveNext();
+                                }
+
                                 // register all interrupts
                                 if (timer.TimerInterrupt)
                                 {
                                     ram[0xff0f] |= 0x04;
                                     timer.TimerInterrupt = false;
                                 }
-                                timer.Tick1MHz();
+                                if (lcd.VBlankInterrupt)
+                                {
+                                    ram[0xff0f] |= 0x01;
+                                    lcd.VBlankInterrupt = false;
+                                }
+                                if (lcd.StatInterrupt)
+                                {
+                                    ram[0xff0f] |= 0x02;
+                                    lcd.StatInterrupt = false;
+                                }
+                                var ff00 = (byte)(ram.GetJoyPad() & 0x0f);
+                                var xorff00 = ff00 ^ joypad;
+                                if (xorff00 != 0 && (joypad & xorff00) != 0) ram[0xff0f] |= 0x10;
+                                joypad = ff00;
+
+                                frameReady = lcd.Tick1MHz();
                                 ram.Tick1MHz();
+                                timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
+                                                    // timing of TMA being transferred to TIMA, then the TMA
+                                                    // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
+
                                 cpuState.MoveNext();
+
+                                ticks++;
                             }
 
-                            // register all interrupts
-                            if (timer.TimerInterrupt)
+                            if (ticks >= 17556 && !frameReady) ;
+                            else if (!frameReady)
                             {
-                                ram[0xff0f] |= 0x04;
-                                timer.TimerInterrupt = false;
+                                cpuState = null;
+                                break;
                             }
-                            if (lcd.VBlankInterrupt)
-                            {
-                                ram[0xff0f] |= 0x01;
-                                lcd.VBlankInterrupt = false;
-                            }
-                            if (lcd.StatInterrupt)
-                            {
-                                ram[0xff0f] |= 0x02;
-                                lcd.StatInterrupt = false;
-                            }
-                            var ff00 = (byte)(ram.GetJoyPad() & 0x0f);
-                            var xorff00 = ff00 ^ joypad;
-                            if (xorff00 != 0 && (joypad & xorff00) != 0) ram[0xff0f] |= 0x10;
-                            joypad = ff00;
-
-                            frameReady = lcd.Tick1MHz();
-                            ram.Tick1MHz();
-                            timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
-                                                // timing of TMA being transferred to TIMA, then the TMA
-                                                // write goes to TIMA as well" (p 26 Gameboy Dev Manual)
-
-                            cpuState.MoveNext();
-
-                            ticks++;
                         }
 
                         // did the program terminate?
-                        if (ticks >= 17556 && !frameReady) ;
-                        else if (!frameReady) cpuState = null;
-                        else
+                        if (frameReady)
                         {
                             //lcd.DumpTiles((ram[0xff40] & 0x10) == 0x10 ? 0x8000 : 0x8800);
                             //Console.WriteLine("Running at {0}MHz", ticks / 1000000.0 * 60);
@@ -289,7 +312,7 @@ namespace GB
                     {
                         ImGui.Begin("Emulator");
 
-                        ImGui.Image((IntPtr)frameTexture.TextureID, new Vector2(160 * 2, 144 * 2));
+                        ImGui.Image((IntPtr)frameTexture.TextureID, new Vector2(160 * scaling, 144 * scaling));
 
                         ImGui.End();
                     }
