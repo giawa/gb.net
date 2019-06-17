@@ -179,12 +179,12 @@ namespace GB
                             if (ImGui.MenuItem("1x Speed", null, (speed == 1)))
                             {
                                 speed = 1;
-                                SDL.SDL_GL_SetSwapInterval(0);
+                                SDL.SDL_GL_SetSwapInterval(1);
                             }
                             if (ImGui.MenuItem("2x Speed", null, (speed == 2)))
                             {
                                 speed = 2;
-                                SDL.SDL_GL_SetSwapInterval(0);
+                                SDL.SDL_GL_SetSwapInterval(1);
                             }
                             if (ImGui.MenuItem("Maximum Speed", null, (speed == 0)))
                             {
