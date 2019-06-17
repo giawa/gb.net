@@ -38,17 +38,18 @@ namespace GB
 
         public bool Tick1MHz()
         {
-            byte ramff40 = _ram[0xff40];
+            byte ramff40 = _ram.SpecialPurpose[0x140];//_ram[0xff40];
             //if ((ramff40 & 0x80) == 0) return false;
             bool displayActive = (ramff40 & 0x80) == 0x80;
 
-            bool frameComplete = Tick4mhz(displayActive);
+            /*bool frameComplete = Tick4mhz(displayActive);
             if (Tick4mhz(displayActive)) frameComplete = true;
             if (Tick4mhz(displayActive)) frameComplete = true;
-            if (Tick4mhz(displayActive)) frameComplete = true;
+            if (Tick4mhz(displayActive)) frameComplete = true;*/
+            bool frameComplete = Tick4mhz(displayActive, 4);
 
             // update the STAT flags with the current mode and LY=LYC
-            byte ramff41 = _ram[0xff41];
+            byte ramff41 = _ram.SpecialPurpose[0x141];//_ram[0xff41];
             ramff41 &= 0b11111100;
             ramff41 |= (byte)lcdMode;
             _ram[0xff41] = ramff41;
@@ -291,9 +292,9 @@ namespace GB
         private int[] palette1lookup = new int[4];
         private int[] lineData = new int[160];
 
-        private bool Tick4mhz(bool displayActive)
+        private bool Tick4mhz(bool displayActive, int clks = 1)
         {
-            clkCtr++;
+            clkCtr += clks;
 
             switch (lcdMode)
             {
