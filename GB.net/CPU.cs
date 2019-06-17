@@ -1,11 +1,6 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 
 namespace GB
 {
@@ -48,16 +43,6 @@ namespace GB
         private byte D, E;
         private byte H, L;
         private ushort SP, PC;
-
-        public ushort GetPC()
-        {
-            return PC;
-        }
-
-        public byte GetA()
-        {
-            return A;
-        }
 
         //private bool nextIMEState = false;
         private bool nextIME = false;
@@ -176,7 +161,7 @@ namespace GB
                     ExtendedOpcode(opcode, ref L);
                     break;
                 case 6:
-                    // this sucks, since RAM is an indexer we need a temporary store
+                    // this sucks, since RAM is an array we need a temporary store
                     yield return null;
                     byte temp = RAM[HL];
                     if (opcode < 0x40 || opcode > 0x7f) yield return null;
@@ -207,8 +192,6 @@ namespace GB
         {
             register = (byte)(register | (1 << bit));
         }
-
-        // flags register (F) is Z N H C 0 0 0 0
 
         private void ExtendedOpcode(byte opcode, ref byte register)
         {
@@ -486,40 +469,11 @@ namespace GB
         }
         #endregion
 
-        public bool CheckInterrupts()
-        {
-            //RAM[0xff0f] |= Interrupts;
-
-            if (IME || stopped)
-            {
-                var IF = RAM[0xff0f];
-                bool vblankInterrupt = (IF & 0x01) == 0x01;
-                bool lcdcStatusInterrupt = (IF & 0x02) == 0x02;
-                bool timerInterrupt = (IF & 0x04) == 0x04;
-                bool serialInterrupt = (IF & 0x08) == 0x08;
-                bool inputInterrupt = (IF & 0x10) == 0x10;
-
-                var IE = RAM[0xffff];
-                if (stopped) IE = 0x1f;
-                //if (halted) IE |= 0x1f;
-                if (IE == 0) return false;
-                bool imeState = IME;
-
-                if (vblankInterrupt && CallISR(IE, 0x01, 0x0040, PC, imeState)) return true;
-                if (lcdcStatusInterrupt && CallISR(IE, 0x02, 0x0048, PC, imeState)) return true;
-                if (timerInterrupt && CallISR(IE, 0x04, 0x0050, PC, imeState)) return true;
-                if (serialInterrupt && CallISR(IE, 0x08, 0x0058, PC, imeState)) return true;
-                if (inputInterrupt && CallISR(IE, 0x10, 0x0060, PC, imeState)) return true;
-            }
-
-            return false;
-        }
-
         private bool CallISR(int ie, byte mask, ushort isr, ushort pc, bool imeState)
         {
             if ((ie & mask) == mask)
             {
-                if (halted) halted = false;
+                halted = false;
 
                 if (IME)
                 {
@@ -553,6 +507,7 @@ namespace GB
                 }
                 else if (stopped)
                 {
+                    stopped = false;
                     RAM[0xff0f] ^= mask;
                     return true;
                 }
@@ -565,7 +520,6 @@ namespace GB
 
         public List<ushort> Breakpoints { get; private set; }
 
-        private int state;
         private IEnumerator currentInstruction;
 
         public void Tick1MHz()
@@ -591,7 +545,7 @@ namespace GB
 
                 byte opcode = 0;
 
-                if (!halted)
+                if (!halted && !stopped)
                 {
                     opcode = RAM[PC];
                     lastPC = PC;
@@ -622,7 +576,7 @@ namespace GB
                     }
                 }
 
-                if (halted)
+                if (halted || stopped)
                 {
                     yield return null;
                     continue;
@@ -639,7 +593,6 @@ namespace GB
 
                 byte lowNibble = (byte)(opcode & 0x0f);
                 byte op2;
-                string opcodeName = string.Empty;
 
                 if (opcode == 0xCB)
                 {
@@ -723,9 +676,7 @@ namespace GB
                                         else
                                         {
                                             stopped = true;
-                                            while (!CheckInterrupts())
-                                                yield return null;
-                                            stopped = false;
+                                            continue;
                                         }
                                     }
                                     else if (opcode == 0x20)
@@ -901,7 +852,7 @@ namespace GB
                                         nextIME = false;
                                         IME = false;
                                     }
-                                    else opcodeName = "undefined";
+                                    else throw new Exception("Unknown opcode");
                                     break;
                                 case 0x04:
                                     if (opcode == 0x04) inc8(ref B);
@@ -947,7 +898,7 @@ namespace GB
                                             PC = imm;
                                         }
                                     }
-                                    else opcodeName = "undefined";
+                                    else throw new Exception("Unknown opcode");
                                     break;
                                 case 0x05:
                                     if (opcode == 0x05) dec8(ref B);
@@ -1230,7 +1181,7 @@ namespace GB
                                     {
                                         // EI is handled at the end of this statement, after IME is set
                                     }
-                                    else opcodeName = "undefined";
+                                    else throw new Exception("Unknown opcode");
                                     break;
                                 case 0x0C:
                                     if (opcode == 0x0C) inc8(ref C);
@@ -1269,7 +1220,7 @@ namespace GB
                                             PC = imm;
                                         }
                                     }
-                                    else opcodeName = "undefined";
+                                    else throw new Exception("Unknown opcode");
                                     break;
                                 case 0x0D:
                                     if (opcode == 0x0D) dec8(ref C);
@@ -1288,7 +1239,7 @@ namespace GB
                                         yield return null;  // 1 clock to set PC
                                         PC = imm;
                                     }
-                                    else opcodeName = "undefined";
+                                    else throw new Exception("Unknown opcode");
                                     break;
                                 case 0x0E:
                                     yield return null;  // these all take an extra cycle to load imm8
