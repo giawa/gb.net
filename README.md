@@ -181,15 +181,15 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 
 | Test              | GB.net     | 
 | ----------------- | ---------- | 
-| bits ram en       | :x:        |
-| rom 512Kb         | :x:        | 
-| rom 1Mb           | :x:        | 
-| rom 2Mb           | :x:        | 
-| rom 4Mb           | :x:        | 
-| rom 8Mb           | :x:        | 
-| rom 16Mb          | :x:        | 
-| ram 64Kb          | :x:        | 
-| ram 256Kb         | :x:        | 
+| bits ram en       | :+1:       |
+| rom 512Kb         | :+1:       | 
+| rom 1Mb           | :+1:       | 
+| rom 2Mb           | :+1:       | 
+| rom 4Mb           | :+1:       | 
+| rom 8Mb           | :+1:       | 
+| rom 16Mb          | :+1:       | 
+| ram 64Kb          | :+1:       | 
+| ram 256Kb         | :+1:       | 
 | multicart rom 8Mb | :x:        | 
 
 ### Mooneye GB manual tests

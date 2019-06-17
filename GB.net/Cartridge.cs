@@ -66,8 +66,7 @@ namespace GB
         }
 
         private bool mbc1_4_32_mode, mbc1_enable_bank;
-        private int mbc1_4000_bank, mbc1_a000_bank;
-        private int mbc1_16_8_offset;
+        private int mbc1_4000_bank, mbc1_bank2;
 
         private int mbc3_register0, mbc3_register1, mbc3_register2, mbc3_register3;
 
@@ -85,7 +84,12 @@ namespace GB
             {
                 if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
                 {
-                    return externalRam[address % externalRam.Length];
+                    if (mbc1_enable_bank)
+                    {
+                        int addr = (mbc1_4_32_mode ? mbc1_bank2 * 8192 : 0) + address;
+                        return externalRam[addr % externalRam.Length];
+                    }
+                    else return 255;
                 }
                 else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
                 {
@@ -107,7 +111,12 @@ namespace GB
                 if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
                 {
                     // TODO:  Support banking of the RAM
-                    externalRam[address % externalRam.Length] = value;
+                    if (mbc1_enable_bank)
+                    {
+                        int addr = (mbc1_4_32_mode ? mbc1_bank2 * 8192 : 0) + address;
+                        externalRam[addr % externalRam.Length] = value;
+                    }
+                    else return;
                 }
                 else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
                 {
@@ -129,15 +138,21 @@ namespace GB
                 {
                     if (a >= 0x4000)
                     {
-                        int bank = Math.Max(1, mbc1_4000_bank | mbc1_16_8_offset);
-                        if (bank == 0x20 || bank == 0x40 || bank == 0x60)
-                            bank = 1;
+                        int bank = Math.Max(1, mbc1_4000_bank | (mbc1_bank2 << 5));
                         int address = (0x4000 * (bank - 1) + a);
                         return data[address % data.Length];
                     }
                     else
                     {
-                        return data[a];
+                        if (mbc1_4_32_mode)
+                        {
+                            int bank = mbc1_bank2 << 5;
+                            return data[(0x4000 * bank + a) % data.Length];
+                        }
+                        else
+                        {
+                            return data[a];
+                        }
                     }
                 }
                 else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
@@ -164,11 +179,12 @@ namespace GB
                     if (a >= 0x6000 && a <= 0x7fff)
                     {
                         mbc1_4_32_mode = (value & 0x01) == 0x01;
-                        if (mbc1_4_32_mode) mbc1_16_8_offset = 0;
                     }
                     else if (a >= 0x2000 && a <= 0x3fff)
                     {
                         mbc1_4000_bank = value & 0x1f;
+                        if (mbc1_4000_bank == 0)
+                            mbc1_4000_bank = 1;
                     }
                     else if (a >= 0x0000 && a <= 0x1fff)
                     {
@@ -176,14 +192,7 @@ namespace GB
                     }
                     else if (a >= 0x4000 && a <= 0x5fff)
                     {
-                        if (mbc1_4_32_mode)
-                        {
-                            mbc1_a000_bank = value & 0x03;
-                        }
-                        else
-                        {
-                            mbc1_16_8_offset = ((value & 0x03) << 6);
-                        }
+                        mbc1_bank2 = value & 0x03;
                     }
                 }
                 else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
