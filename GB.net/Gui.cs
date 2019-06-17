@@ -92,14 +92,14 @@ void main()
         public static void RecreateFontDeviceTexture()
         {
             ImGuiIOPtr io = ImGui.GetIO();
-            // Build
-            //byte[] pixels;
+
+            // get the font texture from imgui
             IntPtr pixels;
             int width, height, bytesPerPixel;
             io.Fonts.GetTexDataAsRGBA32(out pixels, out width, out height, out bytesPerPixel);
-            // Store our identifier
             io.Fonts.SetTexID(_fontAtlasID);
 
+            // take the bytes returned by the font texture and then turn it into a texture
             _fontTexture = new Texture(pixels, width, height, PixelFormat.Rgba, PixelInternalFormat.Rgba);
 
             io.Fonts.ClearTexData();
@@ -173,16 +173,12 @@ void main()
 
                         if (clip_rect.X < _width && clip_rect.Y < _height && clip_rect.Z >= 0.0f && clip_rect.W >= 0.0f)
                         {
-                            // Apply scissor/clipping rectangle
+                            // apply scissor/clipping rectangle
                             Gl.Scissor((int)clip_rect.X, (int)(_height - clip_rect.W), (int)(clip_rect.Z - clip_rect.X), (int)(clip_rect.W - clip_rect.Y));
 
-                            if (pcmd.TextureId == (IntPtr)_fontTexture.TextureID) Gl.BindTexture(TextureTarget.Texture2D, _fontTexture.TextureID);
-                            else
-                            {
-                                /*foreach (var texture in textures)
-                                    if (pcmd.TextureId == (IntPtr)texture.TextureID)*/
-                                Gl.BindTexture(TextureTarget.Texture2D, (uint)pcmd.TextureId);
-                            }
+                            // set the requested texture
+                            Gl.BindTexture(TextureTarget.Texture2D, (uint)pcmd.TextureId);
+
                             Gl.DrawElementsBaseVertex(BeginMode.Triangles, (int)pcmd.ElemCount, DrawElementsType.UnsignedShort, (IntPtr)(idx_offset * 2), vtx_offset);
                         }
 

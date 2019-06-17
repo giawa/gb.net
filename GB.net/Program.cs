@@ -2,8 +2,8 @@
 using OpenGL;
 using SDL2;
 using System;
-using System.Collections;
 using System.Diagnostics;
+using System.IO;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -202,18 +202,21 @@ namespace GB
                         {
                             showOpenDialog = false;
 
-                            if (openDialog.IsOk)
+                            if (openDialog.IsOk && !string.IsNullOrEmpty(openDialog.FullPath))
                             {
                                 Console.WriteLine("Open file: " + openDialog.FullPath);
 
-                                Cartridge gamecart = new Cartridge(openDialog.FullPath);
-                                ram = new Memory();
-                                timer = new Timer(ram);
-                                ram.Timer = timer;
-                                cpu = new CPU(ram);
-                                lcd = new LCD(ram);
-                                cpu.LoadCartridge(gamecart);
-                                cpu.SetPC(0x100);
+                                if (File.Exists(openDialog.FullPath))
+                                {
+                                    Cartridge gamecart = new Cartridge(openDialog.FullPath);
+                                    ram = new Memory();
+                                    timer = new Timer(ram);
+                                    ram.Timer = timer;
+                                    cpu = new CPU(ram);
+                                    lcd = new LCD(ram);
+                                    cpu.LoadCartridge(gamecart);
+                                    cpu.SetPC(0x100);   // skip to the entry point of the game
+                                }
                             }
                         }
                     }
@@ -230,7 +233,7 @@ namespace GB
                             frameReady = false;
                             int ticks = 0;
 
-                            while (!frameReady && ticks < 17556)// && cpuState.MoveNext())
+                            while (!frameReady && ticks < 17556)
                             {
                                 // support GBC double speed
                                 if ((/*ram[0xff4d]*/ram.SpecialPurpose[0x14d] & 0x80) == 0x80)
