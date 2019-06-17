@@ -109,7 +109,7 @@ namespace GB
             }
             set
             {
-                if (a >= 0xff00)
+                if (a >= 0xff00 && a < 0xff80)
                 {
                     if (a == 0xff46)
                     {
