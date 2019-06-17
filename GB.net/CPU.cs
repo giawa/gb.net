@@ -578,8 +578,8 @@ namespace GB
 
                     if (cycle == 0 && (IME || halted || stopped))
                     {
-                        IF = RAM[0xff0f];
-                        IE = RAM[0xffff];
+                        IF = RAM.SpecialPurpose[0x10f];// RAM[0xff0f];
+                        IE = RAM.SpecialPurpose[0x1ff];//RAM[0xffff];
 
                         if ((IE & IF) != 0)
                         {
