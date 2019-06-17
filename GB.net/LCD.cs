@@ -326,7 +326,7 @@ namespace GB
                             VBlankInterrupt = true;
                         }
                         else lcdMode = LCDMode.Mode2;
-                        lineCtr++;
+                        
                         _ram.SetFF44(lineCtr);
                         if (_ram[0xff45] == lineCtr)
                         {
@@ -335,6 +335,7 @@ namespace GB
                             if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                         }
                         else _ram[0xff41] &= 0b11111011;
+                        lineCtr++;
                         clkCtr = 0;
                     }
                     break;
@@ -346,7 +347,7 @@ namespace GB
                             var ff41 = _ram.SpecialPurpose[0x0141];
                             if ((ff41 & 0x20) == 0x20) StatInterrupt = true;
                             lcdMode = LCDMode.Mode2;
-                            lineCtr = 0;
+                            
                             _ram.SetFF44(lineCtr);
                             if (_ram[0xff45] == lineCtr)
                             {
@@ -355,12 +356,12 @@ namespace GB
                                 if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                             }
                             else _ram[0xff41] &= 0b11111011;
+                            lineCtr = 0;
                             clkCtr = 0;
                             return displayActive;
                         }
                         else
                         {
-                            lineCtr++;
                             _ram.SetFF44(lineCtr);
                             if (_ram[0xff45] == lineCtr)
                             {
@@ -369,6 +370,7 @@ namespace GB
                                 if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
                             }
                             else _ram[0xff41] &= 0b11111011;
+                            lineCtr++;
                             clkCtr = 0;
                         }
                     }
