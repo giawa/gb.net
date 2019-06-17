@@ -562,7 +562,6 @@ namespace GB
         }
 
         private bool halted = false, stopped = false, haltBug = false;
-        private static List<byte> specialRegistersUsed = new List<byte>();
 
         public List<ushort> Breakpoints { get; private set; }
 
@@ -786,10 +785,6 @@ namespace GB
                                         else
                                         {
                                             RAM[0xff00 + imm] = A;  // LDH (0xff00+n),A
-                                            if (!specialRegistersUsed.Contains(imm))
-                                            {
-                                                specialRegistersUsed.Add(imm);
-                                            }
                                         }
                                         yield return null;
                                     }
@@ -1343,11 +1338,6 @@ namespace GB
                             }
                             break;
                     }
-                }
-
-                if (!string.IsNullOrEmpty(opcodeName))
-                {
-                    Console.WriteLine("Unimplemented opcode " + opcodeName);
                 }
 
                 IME = nextIME;
