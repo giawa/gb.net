@@ -138,12 +138,20 @@ namespace GB
             return fullBackground;
         }*/
 
+        /// <summary>
+        /// The window can be enabled/disabled as part of a scanline interrupt,
+        /// but if re-enabled it will carry on where it left off.  For this reason
+        /// we need to track the y position for every line it is enabled.
+        /// </summary>
+        private int windowY;
+
         private void DrawLine(int y)
         {
             var ff40 = _ram[0xff40];
             int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
             int bgTileData = (ff40 & 0x10) == 0x10 ? 0x8000 : 0x8800;
             int bgTileMap = (ff40 & 0x08) == 0x08 ? 0x9c00 : 0x9800;
+            windowTileMap -= 0x8000;
             bgTileData -= 0x8000;
             bgTileMap -= 0x8000;
 
@@ -159,14 +167,76 @@ namespace GB
 
             for (int i = 0; i < 160; i++) lineData[i] = -1;
 
+            Array.Clear(backgroundTexture, y * 160, 160);
+
+            int bgstartx = 0, bgendx = 160;
+
+            // this is the window, drawn on top of the background
+            if ((ff40 & 0x20) == 0x20)
+            {
+                int wy = _ram[0xff4a];
+
+                if (y >= wy)
+                {
+                    int wx = _ram[0xff4b];
+                    wx = Math.Max(0, wx - 7);
+
+                    if (wx >= 0 && wx <= 166)
+                    {
+                        for (int x = wx; x < 160;)
+                        {
+                            int tx = (x - wx) & 255;
+                            int ty = (windowY) & 255;
+
+                            int tilex = tx / 8;
+                            int tiley = ty / 8;
+
+                            int tile = _ram.VideoMemory[windowTileMap + tilex + tiley * 32];
+
+                            if (bgTileData == 0x800)
+                            {
+                                if (tile >= 0x80) tile -= 128;
+                                else tile += 128;
+                            }
+
+                            int j = ty % 8;
+                            int k = 7 - (tx % 8);
+
+                            int b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
+                            int b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
+
+                            if (k == 7 && (x + 8) < 160)
+                            {
+                                for (; k >= 0; k--)
+                                {
+                                    int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+                                    pixel = palettebglookup[pixel];
+                                    lineData[x++] = (pixel << 24) | 0xff;
+                                }
+                            }
+                            else
+                            {
+                                int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+                                pixel = palettebglookup[pixel];
+                                lineData[x] = (pixel << 24) | 0xff;
+
+                                x++;
+                            }
+                        }
+
+                        windowY++;
+                    }
+
+                    bgendx = wx - 1;
+                }
+            }
+
             // draw the background first
             int scx = _ram[0xff43];
             int scy = _ram[0xff42];
 
-            Array.Clear(backgroundTexture, y * 160, 160);
-
             // this is going to be slow!
-            for (int x = 0; x < 160;)
+            for (int x = bgstartx; x < bgendx;)
             {
                 int tx = (x + scx) & 255;
                 int ty = (y + scy) & 255;
@@ -359,6 +429,7 @@ namespace GB
                             else _ram[0xff41] &= 0b11111011;
                             lineCtr = 0;
                             clkCtr = 0;
+                            windowY = 0;
                             return displayActive;
                         }
                         else
