@@ -90,7 +90,7 @@ namespace GB
 
         private bool running = true;
 
-        private ushort imm16()
+        /*private ushort imm16()
         {
             byte imm1 = RAM[PC++];
             byte imm2 = RAM[PC++];
@@ -102,7 +102,7 @@ namespace GB
             byte imm1 = RAM[PC++];
             byte imm2 = RAM[PC++];
             return BitConverter.ToInt16(new byte[] { imm1, imm2 }, 0);
-        }
+        }*/
 
         private byte imm8()
         {
@@ -310,19 +310,19 @@ namespace GB
             }
         }
 
-        private ushort pop()
+        /*private ushort pop()
         {
             int temp = RAM[SP++];
             temp |= (RAM[SP++] << 8);
 
             return (ushort)temp;
-        }
+        }*/
 
-        private void push(ushort nn)
+        /*private void push(ushort nn)
         {
             RAM[--SP] = (byte)((nn >> 8) & 0xff);
             RAM[--SP] = (byte)(nn & 0xff);
-        }
+        }*/
 
         /*private void call(ushort nn)
         {
@@ -707,9 +707,11 @@ namespace GB
                                         yield return null;
                                         if ((F & 0x80) == 0x00)
                                         {
-                                            PC = pop();
+                                            ushort pop = RAM[SP++];
                                             yield return null;
+                                            pop |= (ushort)(RAM[SP++] << 8);
                                             yield return null;
+                                            PC = pop;
                                             yield return null;
                                         }
                                     }
@@ -719,9 +721,11 @@ namespace GB
                                         yield return null;
                                         if ((F & 0x10) == 0x00)
                                         {
-                                            PC = pop();
+                                            ushort pop = RAM[SP++];
                                             yield return null;
+                                            pop |= (ushort)(RAM[SP++] << 8);
                                             yield return null;
+                                            PC = pop;
                                             yield return null;
                                         }
                                     }
@@ -748,16 +752,74 @@ namespace GB
                                     }
                                     break;
                                 case 0x01:
-                                    yield return null;
-                                    yield return null;
-                                    if (opcode == 0x01) BC = imm16();       // LD BC,d16
-                                    else if (opcode == 0x11) DE = imm16();  // LD DE,d16
-                                    else if (opcode == 0x21) HL = imm16();  // LD HL,d16
-                                    else if (opcode == 0x31) SP = imm16();  // LD SP,d16
-                                    else if (opcode == 0xC1) BC = pop();
-                                    else if (opcode == 0xD1) DE = pop();
-                                    else if (opcode == 0xE1) HL = pop();
-                                    else if (opcode == 0xF1) AF = (ushort)(pop() & 0xfff0);
+                                    if (opcode == 0x01)
+                                    {
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
+                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
+                                        BC = imm;       // LD BC,d16
+                                    }
+                                    else if (opcode == 0x11)
+                                    {
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
+                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
+                                        DE = imm;  // LD DE,d16
+                                    }
+                                    else if (opcode == 0x21)
+                                    {
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
+                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
+                                        HL = imm;  // LD HL,d16
+                                    }
+                                    else if (opcode == 0x31)
+                                    {
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
+                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
+                                        SP = imm;  // LD SP,d16
+                                    }
+                                    else if (opcode == 0xC1)
+                                    {
+                                        ushort pop = RAM[SP++];
+                                        yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
+                                        yield return null;
+                                        BC = pop;
+                                    }
+                                    else if (opcode == 0xD1)
+                                    {
+                                        ushort pop = RAM[SP++];
+                                        yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
+                                        yield return null;
+                                        DE = pop;
+                                    }
+                                    else if (opcode == 0xE1)
+                                    {
+                                        ushort pop = RAM[SP++];
+                                        yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
+                                        yield return null;
+                                        HL = pop;
+                                    }
+                                    else if (opcode == 0xF1)
+                                    {
+                                        ushort pop = RAM[SP++];
+                                        yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
+                                        yield return null;
+                                        AF = (ushort)(pop & 0xfff0);
+                                    }
                                     break;
                                 case 0x02:
                                     if (opcode == 0x02)
@@ -783,9 +845,11 @@ namespace GB
                                     else if (opcode == 0xC2)
                                     {
                                         // JP NZ,a16
-                                        ushort imm = imm16();
-                                        yield return null;  // 2 cycles for the imm16
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x80) == 0x00)
                                         {
                                             PC = imm;
@@ -795,9 +859,11 @@ namespace GB
                                     else if (opcode == 0xD2)
                                     {
                                         // JP NC,a16
-                                        ushort imm = imm16();
-                                        yield return null;  // 2 cycles for the imm16
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x10) == 0x00)
                                         {
                                             PC = imm;
@@ -838,9 +904,11 @@ namespace GB
                                     }
                                     else if (opcode == 0xC3)
                                     {
-                                        ushort imm = imm16();
-                                        yield return null;  // 2 cycles for the imm16
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         PC = imm;
                                         yield return null;  // 1 cycle to set the PC
                                     }
@@ -869,9 +937,11 @@ namespace GB
                                     else if (opcode == 0xC4)
                                     {
                                         // CALL NZ,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x80) == 0x00)
                                         {
                                             yield return null;  // 1 clock internal delay
@@ -885,9 +955,11 @@ namespace GB
                                     else if (opcode == 0xD4)
                                     {
                                         // CALL NC,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x10) == 0x00)
                                         {
                                             yield return null;  // 1 clock internal delay
@@ -915,29 +987,33 @@ namespace GB
                                     else if (opcode == 0xC5)
                                     {
                                         yield return null;
+                                        RAM[--SP] = (byte)((BC >> 8) & 0xff);
                                         yield return null;
-                                        push(BC);
+                                        RAM[--SP] = (byte)(BC & 0xff);
                                         yield return null;
                                     }
                                     else if (opcode == 0xD5)
                                     {
                                         yield return null;
+                                        RAM[--SP] = (byte)((DE >> 8) & 0xff);
                                         yield return null;
-                                        push(DE);
+                                        RAM[--SP] = (byte)(DE & 0xff);
                                         yield return null;
                                     }
                                     else if (opcode == 0xE5)
                                     {
                                         yield return null;
+                                        RAM[--SP] = (byte)((HL >> 8) & 0xff);
                                         yield return null;
-                                        push(HL);
+                                        RAM[--SP] = (byte)(HL & 0xff);
                                         yield return null;
                                     }
                                     else if (opcode == 0xF5)
                                     {
                                         yield return null;
+                                        RAM[--SP] = (byte)((AF >> 8) & 0xff);
                                         yield return null;
-                                        push(AF);
+                                        RAM[--SP] = (byte)(AF & 0xff);
                                         yield return null;
                                     }
                                     break;
@@ -1002,9 +1078,11 @@ namespace GB
                                     if (opcode == 0x08)
                                     {
                                         // LD (nn),SP
-                                        var addr = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort addr = (ushort)((imm2 << 8) | (imm1));
                                         RAM[addr] = (byte)(SP & 0xff);
                                         yield return null;
                                         RAM[addr + 1] = (byte)((SP >> 8) & 0xff);
@@ -1043,9 +1121,11 @@ namespace GB
                                         yield return null;
                                         if ((F & 0x80) == 0x80)
                                         {
-                                            PC = pop();
+                                            ushort pop = RAM[SP++];
                                             yield return null;
+                                            pop |= (ushort)(RAM[SP++] << 8);
                                             yield return null;
+                                            PC = pop;
                                             yield return null;
                                         }
                                     }
@@ -1055,9 +1135,11 @@ namespace GB
                                         yield return null;
                                         if ((F & 0x10) == 0x10)
                                         {
-                                            PC = pop();
+                                            ushort pop = RAM[SP++];
                                             yield return null;
+                                            pop |= (ushort)(RAM[SP++] << 8);
                                             yield return null;
+                                            PC = pop;
                                             yield return null;
                                         }
                                     }
@@ -1085,9 +1167,11 @@ namespace GB
                                     else if (opcode == 0x39) add16(SP); // ADD HL,SP
                                     else if (opcode == 0xC9)
                                     {
-                                        PC = pop();// RET
+                                        ushort pop = RAM[SP++];
                                         yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
                                         yield return null;
+                                        PC = pop;// RET
                                         yield return null;
                                     }
                                     else if (opcode == 0xD9)    // RETI
@@ -1095,10 +1179,12 @@ namespace GB
                                         // TODO:  User manual makes no mention of it, but
                                         // the reverse engineered manual says that EI doesn't take
                                         // effect until the next instruction.  This could cause issues
-                                        PC = pop();
+                                        ushort pop = RAM[SP++];
+                                        yield return null;
+                                        pop |= (ushort)(RAM[SP++] << 8);
+                                        yield return null;
+                                        PC = pop;
                                         nextIME = true;
-                                        yield return null;
-                                        yield return null;
                                         yield return null;
                                     }
                                     else if (opcode == 0xE9) PC = HL;   // JMP HL
@@ -1132,9 +1218,11 @@ namespace GB
                                     else if (opcode == 0xCA)
                                     {
                                         // JP Z,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x80) == 0x80)
                                         {
                                             PC = imm;
@@ -1144,9 +1232,11 @@ namespace GB
                                     else if (opcode == 0xDA)
                                     {
                                         // JP C,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x10) == 0x10)
                                         {
                                             PC = imm;
@@ -1155,17 +1245,21 @@ namespace GB
                                     }
                                     else if (opcode == 0xEA)
                                     {
-                                        var imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         RAM[imm] = A;
                                         yield return null;
                                     }
                                     else if (opcode == 0xFA)
                                     {
-                                        var imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         A = RAM[imm];
                                         yield return null;
                                     }
@@ -1191,9 +1285,11 @@ namespace GB
                                     else if (opcode == 0xCC)
                                     {
                                         // CALL Z,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x80) == 0x80)
                                         {
                                             yield return null;  // 1 clock internal delay
@@ -1207,9 +1303,11 @@ namespace GB
                                     else if (opcode == 0xDC)
                                     {
                                         // CALL C,a16
-                                        ushort imm = imm16();
+                                        byte imm1 = RAM[PC++];
+                                        yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        yield return null;
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         if ((F & 0x10) == 0x10)
                                         {
                                             yield return null;  // 1 clock internal delay
@@ -1227,11 +1325,13 @@ namespace GB
                                     else if (opcode == 0x1D) dec8(ref E);
                                     else if (opcode == 0x2D) dec8(ref L);
                                     else if (opcode == 0x3D) dec8(ref A);
-                                    else if (opcode == 0xCD)
+                                    else if (opcode == 0xCD)    // CALL a16
                                     {
+                                        byte imm1 = RAM[PC++];
                                         yield return null;  // 2 clocks to load imm16
+                                        byte imm2 = RAM[PC++];
                                         yield return null;
-                                        ushort imm = imm16();
+                                        ushort imm = (ushort)((imm2 << 8) | (imm1));
                                         yield return null;  // 1 clock internal delay
                                         RAM[--SP] = (byte)((PC >> 8) & 0xff);
                                         yield return null;

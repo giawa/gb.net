@@ -7,7 +7,6 @@ The main goal of this project is to learn about creating emulators.  I've alread
 TODO:
 * Support custom key bindings.
 * Support more memory controllers (including save files for battery backed RAMs)
-* Add window support
 * Add sound support
 * Use something other than vertical sync for frame/CPU timing
 * Pass more acceptance tests
@@ -55,7 +54,7 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 | Test              | GB.net     | 
 | ----------------- | ---------- | 
 | cpu instrs        | :+1:       | 
-| dmg sound 2       | :x:        | 
+| dmg sound 2       |            | 
 | instr timing      | :+1:       | 
 | mem timing 2      | :+1:       | 
 | oam bug 2         |            | 
@@ -64,7 +63,7 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 
 | Test                    | GB.net     | 
 | ----------------------- | ---------- | 
-| add sp e timing         | :x:        | 
+| add sp e timing         | :+1:       | 
 | boot div dmg0           | :x:        | 
 | boot div dmgABCmgb      | :x:        |
 | boot div S              | :x:        | 
@@ -77,9 +76,9 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 | boot regs mgb           | :x:        | 
 | boot regs sgb           | :x:        | 
 | boot regs sgb2          | :x:        | 
-| call timing             | :x:        | 
+| call timing             | :+1:       | 
 | call timing2            | :+1:       | 
-| call cc_timing          | :x:        |
+| call cc_timing          | :+1:       |
 | call cc_timing2         | :+1:       | 
 | di timing GS            | :x:        |
 | div timing              | :x:        |
@@ -91,17 +90,17 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 | halt ime1 timing2 GS    | :x:        | 
 | if ie registers         | :+1:       | 
 | intr timing             | :+1:       |
-| jp timing               | :x:        | 
-| jp cc timing            | :x:        | 
-| ld hl sp e timing       | :x:        | 
+| jp timing               | :+1:       | 
+| jp cc timing            | :+1:       | 
+| ld hl sp e timing       | :+1:       | 
 | oam dma_restart         | :+1:       | 
 | oam dma start           | :x:        | 
 | oam dma timing          | :+1:       | 
 | pop timing              | :x:        | 
-| push timing             | :x:        | 
+| push timing             | :+1:       | 
 | rapid di ei             | :+1:       |
 | ret timing              | :x:        | 
-| ret cc timing           | :x:        | 
+| ret cc timing           | :+1:       | 
 | reti timing             | :x:        | 
 | reti intr timing        | :+1:       |
 | rst timing              | :+1:       |
