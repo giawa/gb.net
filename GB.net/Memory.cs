@@ -99,6 +99,7 @@ namespace GB
                     else if (a < 0xC000) return Cartridge.ExternalRAM(a - 0xA000);
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
                     else if (a == 0xff00) return (byte)(GetJoyPad() | 0b11000000);          // P1
+                    else if (a == 0xff04) return (byte)(TimerCounter >> 6);
                     else return specialPurpose[a & 511];
                 }
                 else
@@ -178,12 +179,7 @@ namespace GB
 
         public void SetFF44(byte value)
         {
-            specialPurpose[0xff44 & 511] = value;
-        }
-
-        public void SetFF04(byte value)
-        {
-            specialPurpose[0xff04 & 511] = value;
+            specialPurpose[0x144] = value;
         }
 
         public byte[] VideoMemory { get { return videoRam; } }

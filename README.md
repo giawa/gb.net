@@ -81,7 +81,7 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 | call cc_timing          | :+1:       |
 | call cc_timing2         | :+1:       | 
 | di timing GS            | :x:        |
-| div timing              | :x:        |
+| div timing              | :+1:       |
 | ei sequence             | :+1:       | 
 | ei timing               | :+1:       |
 | halt ime0 ei            | :+1:       | 
@@ -96,12 +96,12 @@ For accuracy comparison the emulator is tested against the most common Blargg te
 | oam dma_restart         | :+1:       | 
 | oam dma start           | :x:        | 
 | oam dma timing          | :+1:       | 
-| pop timing              | :x:        | 
+| pop timing              | :+1:       | 
 | push timing             | :+1:       | 
 | rapid di ei             | :+1:       |
-| ret timing              | :x:        | 
+| ret timing              | :+1:       | 
 | ret cc timing           | :+1:       | 
-| reti timing             | :x:        | 
+| reti timing             | :+1:       | 
 | reti intr timing        | :+1:       |
 | rst timing              | :+1:       |
 

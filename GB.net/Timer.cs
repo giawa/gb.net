@@ -52,7 +52,6 @@
             }
 
             _ram.TimerCounter = (ctr + 1) & 16383;
-            _ram.SpecialPurpose[0x104] = (byte)(ctr >> 6);
         }
     }
 }
