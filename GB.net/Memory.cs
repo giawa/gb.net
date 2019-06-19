@@ -103,7 +103,8 @@ namespace GB
                 }
                 else
                 {
-                    if (a < 0xff00) return 255;
+                    if (a < 0xFE00 && a >= 0xC000) return internalRam[(a - 0xC000) % 8192];
+                    else if (a < 0xff00) return 255;
                     else return specialPurpose[a & 511];
                 }
             }
