@@ -72,7 +72,21 @@ namespace GB
 
         public bool WriteProtected
         {
-            get { return !mbc1_enable_bank; }
+            get
+            {
+                if (Type == CartridgeType.MBC1 || Type == CartridgeType.MBC1_RAM || Type == CartridgeType.MBC1_RAM_BATT)
+                {
+                    return !mbc1_enable_bank;
+                }
+                else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
+                {
+                    return (mbc3_register0 & 0x0f) != 0x0a;
+                }
+                else
+                {
+                    return false;
+                }
+            }
         }
 
         private byte[] externalRam;
