@@ -329,8 +329,8 @@ namespace GB
                         // now merge the pixel information into the line data (which already contains background information)
                         int background = (lineData[x] >> 24);
                         // taking care of order depending on the spriteX position
-                        if ((lineData[x] & 0xff) == 0xff) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
-                        else if (((lineData[x] >> 8) & 0xff) > spriteX && pixel != 255 && pixel != 0) lineData[x] = pixel | (spriteX << 8) | (attr << 16) | (background << 24);
+                        if ((lineData[x] & 0xff) == 0xff) lineData[x] = pixel | ((spriteX + 8) << 8) | (attr << 16) | (background << 24);
+                        else if (((lineData[x] >> 8) & 0xff) > spriteX + 8 && pixel != 255 && pixel != 0) lineData[x] = pixel | ((spriteX + 8) << 8) | (attr << 16) | (background << 24);
                     }
                 }
             }
@@ -362,12 +362,52 @@ namespace GB
         private int[] palette1lookup = new int[4];
         private int[] lineData = new int[160];
 
+        private void SetCoincidenceFlag()
+        {
+            if (_ram.SpecialPurpose[0x145] == lineCtr)
+            {
+                _ram.SpecialPurpose[0x141] |= 0x04;
+                var ff41 = _ram.SpecialPurpose[0x0141];
+                if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
+            }
+            else _ram.SpecialPurpose[0x141] &= 0b11111011;
+        }
+
         private bool Tick4mhz(bool displayActive, int clks = 1)
         {
             clkCtr += clks;
 
             switch (lcdMode)
             {
+                case LCDMode.HBlank:
+                    if (clkCtr == 204)
+                    {
+                        //if (displayActive) DrawLine(lineCtr);
+
+                        if (lineCtr == 143)
+                        {
+                            lcdMode = LCDMode.VBlank;
+
+                            VBlankInterrupt = true;
+
+                            var ff41 = _ram.SpecialPurpose[0x0141];
+                            if ((ff41 & 0x10) == 0x10) StatInterrupt = true;
+                        }
+                        else
+                        {
+                            lcdMode = LCDMode.Mode2;
+
+                            var ff41 = _ram.SpecialPurpose[0x0141];
+                            if ((ff41 & 0x20) == 0x20) StatInterrupt = true;
+                        }
+
+                        
+                        SetCoincidenceFlag();
+                        lineCtr++;
+                        _ram.SetFF44(lineCtr);
+                        clkCtr = 0;
+                    }
+                    break;
                 case LCDMode.Mode2:
                     if (clkCtr == 80)
                     {
@@ -382,32 +422,8 @@ namespace GB
                         if ((ff41 & 0x08) == 0x08) StatInterrupt = true;
                         lcdMode = LCDMode.HBlank;
                         clkCtr = 0;
-                    }
-                    break;
-                case LCDMode.HBlank:
-                    if (clkCtr == 204)
-                    {
-                        if (displayActive) DrawLine(lineCtr);
 
-                        if (lineCtr == 143)
-                        {
-                            var ff41 = _ram.SpecialPurpose[0x0141];
-                            if ((ff41 & 0x10) == 0x10) StatInterrupt = true;
-                            lcdMode = LCDMode.VBlank;
-                            VBlankInterrupt = true;
-                        }
-                        else lcdMode = LCDMode.Mode2;
-                        
-                        _ram.SetFF44(lineCtr);
-                        if (_ram[0xff45] == lineCtr)
-                        {
-                            _ram[0xff41] |= 0x04;
-                            var ff41 = _ram.SpecialPurpose[0x0141];
-                            if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
-                        }
-                        else _ram[0xff41] &= 0b11111011;
-                        lineCtr++;
-                        clkCtr = 0;
+                        if (displayActive) DrawLine(lineCtr);
                     }
                     break;
                 case LCDMode.VBlank:
@@ -418,31 +434,21 @@ namespace GB
                             var ff41 = _ram.SpecialPurpose[0x0141];
                             if ((ff41 & 0x20) == 0x20) StatInterrupt = true;
                             lcdMode = LCDMode.Mode2;
+
                             
-                            _ram.SetFF44(lineCtr);
-                            if (_ram[0xff45] == lineCtr)
-                            {
-                                _ram[0xff41] |= 0x04;
-                                ff41 = _ram.SpecialPurpose[0x0141];
-                                if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
-                            }
-                            else _ram[0xff41] &= 0b11111011;
+                            SetCoincidenceFlag();
                             lineCtr = 0;
+                            _ram.SetFF44(lineCtr);
                             clkCtr = 0;
                             windowY = 0;
                             return displayActive;
                         }
                         else
                         {
-                            _ram.SetFF44(lineCtr);
-                            if (_ram[0xff45] == lineCtr)
-                            {
-                                _ram[0xff41] |= 0x04;
-                                var ff41 = _ram.SpecialPurpose[0x0141];
-                                if ((ff41 & 0x40) == 0x40) StatInterrupt = true;
-                            }
-                            else _ram[0xff41] &= 0b11111011;
+                            
+                            SetCoincidenceFlag();
                             lineCtr++;
+                            _ram.SetFF44(lineCtr);
                             clkCtr = 0;
                         }
                     }
