@@ -211,14 +211,14 @@ namespace GB
                                 {
                                     int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                                     pixel = palettebglookup[pixel];
-                                    lineData[x++] = (pixel << 24) | 0xff;
+                                    lineData[x++] = (pixel << 24) | 0xffff;
                                 }
                             }
                             else
                             {
                                 int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
                                 pixel = palettebglookup[pixel];
-                                lineData[x] = (pixel << 24) | 0xff;
+                                lineData[x] = (pixel << 24) | 0xffff;
 
                                 x++;
                             }
@@ -313,6 +313,9 @@ namespace GB
 
                     for (int x = Math.Max(0, spriteX); x < Math.Min(160, spriteX + 8); x++)
                     {
+                        // check if this sprite is under a window pixel
+                        if ((lineData[x] & 0xffff) == 0xffff) continue;
+
                         int _x = x - spriteX;
                         int pixel;
                         // check if x is flipped
