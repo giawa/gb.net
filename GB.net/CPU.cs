@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 
 namespace GB
 {
@@ -47,6 +48,44 @@ namespace GB
         //private bool nextIMEState = false;
         private bool nextIME = false;
         private bool IME = false;
+
+        public void ExportState(int version, BinaryWriter output)
+        {
+            output.Write(nextIME);
+            output.Write(IME);
+            output.Write(halted);
+            output.Write(stopped);
+            output.Write(haltBug);
+            output.Write(A);
+            output.Write(F);
+            output.Write(B);
+            output.Write(C);
+            output.Write(D);
+            output.Write(E);
+            output.Write(H);
+            output.Write(L);
+            output.Write(SP);
+            output.Write(PC);
+        }
+
+        public void ImportState(int version, BinaryReader input)
+        {
+            nextIME = input.ReadBoolean();
+            IME = input.ReadBoolean();
+            halted = input.ReadBoolean();
+            stopped = input.ReadBoolean();
+            haltBug = input.ReadBoolean();
+            A = input.ReadByte();
+            F = input.ReadByte();
+            B = input.ReadByte();
+            C = input.ReadByte();
+            D = input.ReadByte();
+            E = input.ReadByte();
+            H = input.ReadByte();
+            L = input.ReadByte();
+            SP = input.ReadUInt16();
+            PC = input.ReadUInt16();
+        }
 
         private ushort AF
         {
@@ -527,6 +566,10 @@ namespace GB
             currentInstruction.MoveNext();
         }
 
+        public byte CurrentOpcode {  get { return opcode; } }
+
+        private byte opcode;
+
         private ushort lastPC = 0;
 
         private IEnumerator ExecuteInstruction()
@@ -543,7 +586,7 @@ namespace GB
                     }
                 }*/
 
-                byte opcode = 0;
+                opcode = 0;
 
                 if (!halted && !stopped)
                 {

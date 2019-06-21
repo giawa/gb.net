@@ -193,6 +193,30 @@ namespace GB
         private byte[] internalRam = new byte[8192];
         private byte[] specialPurpose = new byte[512];
 
+        public void ExportState(int version, BinaryWriter output)
+        {
+            output.Write(TimerCounter);
+            output.Write(firstBoot);
+            output.Write(reloadTima);
+            output.Write(timaDelayed);
+            output.Write(dmaCtr);
+            output.Write(videoRam);
+            output.Write(internalRam);
+            output.Write(specialPurpose);
+        }
+
+        public void ImportState(int version, BinaryReader input)
+        {
+            TimerCounter = input.ReadInt32();
+            firstBoot = input.ReadBoolean();
+            reloadTima = input.ReadBoolean();
+            timaDelayed = input.ReadBoolean();
+            dmaCtr = input.ReadInt32();
+            videoRam = input.ReadBytes(8192);
+            internalRam = input.ReadBytes(8192);
+            specialPurpose = input.ReadBytes(512);
+        }
+
         public void Reset()
         {
             firstBoot = true;

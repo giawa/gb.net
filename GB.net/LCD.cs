@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.IO;
 
 namespace GB
 {
@@ -28,7 +29,7 @@ namespace GB
 
         public bool StatInterrupt { get; set; }
 
-        public enum LCDMode
+        public enum LCDMode : byte
         {
             HBlank = 0,
             VBlank = 1,
@@ -463,6 +464,26 @@ namespace GB
             }
 
             return false;
+        }
+
+        public void ExportState(int version, BinaryWriter output)
+        {
+            output.Write(clkCtr);
+            output.Write(lineCtr);
+            output.Write((byte)lcdMode);
+            output.Write(VBlankInterrupt);
+            output.Write(StatInterrupt);
+            for (int i = 0; i < 4; i++) output.Write(activePalette[i]);
+        }
+
+        public void ImportState(int version, BinaryReader input)
+        {
+            clkCtr = input.ReadInt32();
+            lineCtr = input.ReadByte();
+            lcdMode = (LCDMode)input.ReadByte();
+            VBlankInterrupt = input.ReadBoolean();
+            StatInterrupt = input.ReadBoolean();
+            for (int i = 0; i < 4; i++) activePalette[i] = input.ReadUInt32();
         }
     }
 }

@@ -191,6 +191,56 @@ namespace GB
                                 speed = 0;
                                 SDL.SDL_GL_SetSwapInterval(0);
                             }
+                            ImGui.Separator();
+                            if (ImGui.MenuItem("Export State"))
+                            {
+                                // run the processor until the next opcode is reached so that we have finished up the current opcode
+                                int opcode = cpu.CurrentOpcode;
+
+                                int fail = 0;
+                                while (opcode == cpu.CurrentOpcode && fail++ < 17556)
+                                {
+                                    lcd.Tick1MHz();
+                                    ram.Tick1MHz();
+                                    timer.Tick1MHz();
+                                    cpu.Tick1MHz();
+                                }
+
+                                if (fail >= 17556)
+                                {
+                                    Console.WriteLine("CPU may be stopped or halted, could not export contents.");
+                                    continue;
+                                }
+
+                                using (BinaryWriter output = new BinaryWriter(new FileStream("dump.bin", FileMode.Create)))
+                                {
+                                    output.Write((int)0);    // version 0
+                                    lcd.ExportState(0, output);
+                                    output.Write(timer.TimerInterrupt);
+                                    ram.ExportState(0, output);
+                                    cpu.Cartridge.ExportState(0, output);
+                                    cpu.ExportState(0, output);
+
+                                    Console.WriteLine("Dumped state to dump.bin");
+                                }
+                            }
+                            if (ImGui.MenuItem("Import State"))
+                            {
+                                using (BinaryReader input = new BinaryReader(new FileStream("dump.bin", FileMode.Open)))
+                                {
+                                    var cartridge = cpu.Cartridge;
+                                    cpu = new CPU(ram); // clear any internal state
+                                    cpu.LoadCartridge(cartridge);
+                                    var version = input.ReadInt32();
+                                    lcd.ImportState(version, input);
+                                    timer.TimerInterrupt = input.ReadBoolean();
+                                    ram.ImportState(version, input);
+                                    cpu.Cartridge.ImportState(version, input);
+                                    cpu.ImportState(version, input);
+
+                                    Console.WriteLine("Imported state from dump.bin");
+                                }
+                            }
                             ImGui.EndMenu();
                         }
                         ImGui.EndMainMenuBar();

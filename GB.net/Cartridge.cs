@@ -70,6 +70,34 @@ namespace GB
 
         private int mbc3_register0, mbc3_register1, mbc3_register2, mbc3_register3;
 
+        public void ExportState(int version, BinaryWriter output)
+        {
+            output.Write(mbc1_4_32_mode);
+            output.Write(mbc1_enable_bank);
+            output.Write(mbc1_4000_bank);
+            output.Write(mbc1_bank2);
+            output.Write(mbc3_register0);
+            output.Write(mbc3_register1);
+            output.Write(mbc3_register2);
+            output.Write(mbc3_register3);
+            output.Write(RAMSize);
+            output.Write(externalRam);
+        }
+
+        public void ImportState(int version, BinaryReader input)
+        {
+            mbc1_4_32_mode = input.ReadBoolean();
+            mbc1_enable_bank = input.ReadBoolean();
+            mbc1_4000_bank = input.ReadInt32();
+            mbc1_bank2 = input.ReadInt32();
+            mbc3_register0 = input.ReadInt32();
+            mbc3_register1 = input.ReadInt32();
+            mbc3_register2 = input.ReadInt32();
+            mbc3_register3 = input.ReadInt32();
+            RAMSize = input.ReadInt32();
+            externalRam = input.ReadBytes(RAMSize);
+        }
+
         public bool WriteProtected
         {
             get
@@ -108,6 +136,7 @@ namespace GB
                 else if (Type == CartridgeType.MBC3 || Type == CartridgeType.MBC3_RAM || Type == CartridgeType.MBC3_RAM_BATT || Type == CartridgeType.MBC3_TIMER_BATT || Type == CartridgeType.MBC3_TIMER_RAM_BATT)
                 {
                     int addr = (mbc3_register2 * 8192) + address;
+                    if (addr >= externalRam.Length) return 0xff;
                     return externalRam[addr];
                 }
                 else
