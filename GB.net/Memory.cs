@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 
 namespace GB
@@ -10,6 +11,8 @@ namespace GB
         private bool firstBoot = true;
 
         public Timer Timer { get; set; }
+
+        public LCD LCD { get; set; }
 
         [Flags]
         public enum JoyPadButton : byte
@@ -95,7 +98,12 @@ namespace GB
                 {
                     if (a < 256 && firstBoot) return bootstrap[a];
                     else if (a < 32768) return Cartridge[a];
-                    else if (a < 0xA000) return videoRam[a - 0x8000];
+                    else if (a < 0xA000)
+                    {
+                        if (LCD.CurrentMode == LCD.LCDMode.Mode3 && SpecialPurpose[0x104] >= 0x80)
+                            return 255;
+                        else return videoRam[a - 0x8000];
+                    }
                     else if (a < 0xC000) return Cartridge.ExternalRAM(a - 0xA000);
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
                     else if (a == 0xff00) return (byte)(GetJoyPad() | 0b11000000);          // P1
@@ -158,9 +166,12 @@ namespace GB
 
                 if (dmaCtr == 161 || dmaCtr == -1)
                 {
-                    if (a < 32768)
-                        Cartridge[a] = value;
-                    else if (a < 0xA000) videoRam[a - 0x8000] = value;
+                    if (a < 32768) Cartridge[a] = value;
+                    else if (a < 0xA000)
+                    {
+                        if (LCD.CurrentMode != LCD.LCDMode.Mode3 || SpecialPurpose[0x104] < 0x80) videoRam[a - 0x8000] = value;
+                        //else Console.WriteLine("stop");
+                    }
                     else if (a < 0xC000)
                     {
                         if (!Cartridge.WriteProtected)
