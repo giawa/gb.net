@@ -15,8 +15,6 @@ namespace GB
 
             RAM[0xff40] = 0x83;
 
-            Breakpoints = new List<ushort>();
-
             currentInstruction = ExecuteInstruction();
         }
 
@@ -128,20 +126,6 @@ namespace GB
         }
 
         private bool running = true;
-
-        /*private ushort imm16()
-        {
-            byte imm1 = RAM[PC++];
-            byte imm2 = RAM[PC++];
-            return BitConverter.ToUInt16(new byte[] { imm1, imm2 }, 0);
-        }
-
-        private short imm16s()
-        {
-            byte imm1 = RAM[PC++];
-            byte imm2 = RAM[PC++];
-            return BitConverter.ToInt16(new byte[] { imm1, imm2 }, 0);
-        }*/
 
         private byte imm8()
         {
@@ -294,9 +278,6 @@ namespace GB
                 case 0xf8:
                     set(((opcode - 0xc0) >> 3), ref register);
                     break;
-                default:
-                    Console.WriteLine("Unimplemented extended opcode.");
-                    break;
             }
         }
 
@@ -348,26 +329,6 @@ namespace GB
                     break;
             }
         }
-
-        /*private ushort pop()
-        {
-            int temp = RAM[SP++];
-            temp |= (RAM[SP++] << 8);
-
-            return (ushort)temp;
-        }*/
-
-        /*private void push(ushort nn)
-        {
-            RAM[--SP] = (byte)((nn >> 8) & 0xff);
-            RAM[--SP] = (byte)(nn & 0xff);
-        }*/
-
-        /*private void call(ushort nn)
-        {
-            push(PC);
-            PC = nn;
-        }*/
 
         private void rl(ref byte register)
         {
@@ -550,14 +511,11 @@ namespace GB
                     RAM[0xff0f] ^= mask;
                     return true;
                 }
-                //else RAM[0xff0f] ^= mask;
             }
             return false;
         }
 
         private bool halted = false, stopped = false, haltBug = false;
-
-        public List<ushort> Breakpoints { get; private set; }
 
         private IEnumerator currentInstruction;
 
@@ -576,16 +534,6 @@ namespace GB
         {
             while (running)
             {
-                /*foreach (var pc in Breakpoints)
-                {
-                    if (pc == PC)
-                    {
-                        Console.WriteLine("Hit 0x" + pc.ToString());
-                        //LCD temp = new LCD(RAM);
-                        //temp.DumpTiles(0x8000);
-                    }
-                }*/
-
                 opcode = 0;
 
                 if (!halted && !stopped)
@@ -657,20 +605,16 @@ namespace GB
                             op2 = GetCommonOp2((byte)(opcode & 0x07));
                             if (opcode == 0x76) // HALT
                             {
+                                halted = true;
                                 if (!IME && !nextIME)
                                 {
                                     haltBug = true;
-                                    halted = true;
-                                    //yield break;
-                                    continue;
                                 }
                                 else
                                 {
                                     IME = nextIME;
-                                    halted = true;
-                                    //yield break;
-                                    continue;
                                 }
+                                continue;
                             }
                             else if (opcode < 0x78 || opcode == 0x7E)
                             {
