@@ -264,6 +264,7 @@ namespace GB
                                     ram.Timer = timer;
                                     cpu = new CPU(ram);
                                     lcd = new LCD(ram);
+                                    ram.LCD = lcd;
                                     cpu.LoadCartridge(gamecart);
                                     cpu.SetPC(0x100);   // skip to the entry point of the game
                                 }
