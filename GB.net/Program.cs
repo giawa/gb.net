@@ -304,15 +304,15 @@ namespace GB
                                 }
 
                                 // register all interrupts
-                                if (timer.TimerInterrupt)
-                                {
-                                    ram[0xff0f] |= 0x04;
-                                    timer.TimerInterrupt = false;
-                                }
                                 if (lcd.VBlankInterrupt)
                                 {
                                     ram[0xff0f] |= 0x01;
                                     lcd.VBlankInterrupt = false;
+                                }
+                                if (timer.TimerInterrupt)
+                                {
+                                    ram[0xff0f] |= 0x04;
+                                    timer.TimerInterrupt = false;
                                 }
                                 if (lcd.StatInterrupt)
                                 {
@@ -360,8 +360,13 @@ namespace GB
                             bitmapHandle.Free();
 
                             /*if (bgTexture != null) bgTexture.Dispose();
-                            bitmapHandle = GCHandle.Alloc(lcd.DumpBackground(), GCHandleType.Pinned);
-                            bgTexture = new Texture(bitmapHandle.AddrOfPinnedObject(), 256, 256, PixelFormat.Rgba, PixelInternalFormat.Rgba);
+                            bitmapHandle = GCHandle.Alloc(lcd.DumpTiles(0x8000), GCHandleType.Pinned);
+                            bgTexture = new Texture(bitmapHandle.AddrOfPinnedObject(), 128, 128, PixelFormat.Rgba, PixelInternalFormat.Rgba);
+                            bitmapHandle.Free();
+
+                            if (bgTexture2 != null) bgTexture2.Dispose();
+                            bitmapHandle = GCHandle.Alloc(lcd.DumpTiles(0x8800), GCHandleType.Pinned);
+                            bgTexture2 = new Texture(bitmapHandle.AddrOfPinnedObject(), 128, 128, PixelFormat.Rgba, PixelInternalFormat.Rgba);
                             bitmapHandle.Free();*/
                             //Console.WriteLine("Frame after {0}ms", watch.ElapsedMilliseconds);
                         }
@@ -378,9 +383,18 @@ namespace GB
 
                     if (bgTexture != null)
                     {
-                        ImGui.Begin("Background");
+                        ImGui.Begin("0x8000 Tiles");
 
-                        ImGui.Image((IntPtr)bgTexture.TextureID, new Vector2(256 * 2, 256 * 2));
+                        ImGui.Image((IntPtr)bgTexture.TextureID, new Vector2(128 * 2, 128 * 2));
+
+                        ImGui.End();
+                    }
+
+                    if (bgTexture2 != null)
+                    {
+                        ImGui.Begin("0x8800 Tiles");
+
+                        ImGui.Image((IntPtr)bgTexture2.TextureID, new Vector2(128 * 2, 128 * 2));
 
                         ImGui.End();
                     }
@@ -405,7 +419,7 @@ namespace GB
             SDL.SDL_DestroyWindow(window);
         }
 
-        private static Texture frameTexture, bgTexture;
+        private static Texture frameTexture, bgTexture, bgTexture2;
 
         private static bool showOpenDialog = false;
         private static FileDialog openDialog = new FileDialog();

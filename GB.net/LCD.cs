@@ -71,38 +71,49 @@ namespace GB
             }
         }
 
-        public void DumpTiles(int bgTileData = 0x8000)
+        private uint[] tiles = new uint[128 * 128];
+
+        public uint[] DumpTiles(int bgTileData)
         {
+            var ff40 = _ram[0xff40];
+            int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
+            //int bgTileData = (ff40 & 0x10) == 0x10 ? 0x8000 : 0x8800;
+            int bgTileMap = (ff40 & 0x08) == 0x08 ? 0x9c00 : 0x9800;
             bgTileData -= 0x8000;
+            //bgTileMap -= 0x8000;
 
-            for (int i = 0; i < 256; i++)
+            for (int y = 0; y < 16; y++)
             {
-                Bitmap temp = new Bitmap(8, 8);
-
-                // what a weird way to store pixel data ... each pixel spans 2 bytes
-                for (int j = 0; j < 8; j++)
+                for (int x = 0; x < 16; x++)
                 {
-                    byte b1 = _ram.VideoMemory[bgTileData + i * 16 + j * 2];
-                    byte b2 = _ram.VideoMemory[bgTileData + i * 16 + j * 2 + 1];
+                    int tile = x + y * 16;//_ram.VideoMemory[bgTileMap + x + y * 32];
 
-                    for (int k = 7; k >= 0; k--)
+                    // what a weird way to store pixel data ... each pixel spans 2 bytes
+                    for (int j = 0; j < 8; j++)
                     {
-                        int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
-                        Color c = (pixel == 0 ? Color.White :
-                            (pixel == 1 ? Color.Gray :
-                            (pixel == 2 ? Color.DarkGray : Color.Black)));
+                        int p = x * 8 + (y * 8 + j) * 128;
 
-                        temp.SetPixel(7 - k, j, c);
+                        byte b1 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2];
+                        byte b2 = _ram.VideoMemory[bgTileData + tile * 16 + j * 2 + 1];
+
+                        for (int k = 7; k >= 0; k--)
+                        {
+                            int pixel = (((b2 >> k) & 0x01) << 1) | ((b1 >> k) & 0x01);
+
+                            //Array.Copy(activePalette[pixel], 0, tiles, p, 4);
+                            tiles[p] = activePalette[pixel];
+                            p++;
+                        }
                     }
                 }
-
-                temp.Save($"tiles/tile{i}.png", System.Drawing.Imaging.ImageFormat.Png);
             }
+
+            return tiles;
         }
 
-        private byte[] fullBackground = new byte[256 * 256 * 4];
+        /*private byte[] fullBackground = new byte[256 * 256 * 4];
 
-        /*public byte[] DumpBackground()
+        public byte[] DumpBackground()
         {
             var ff40 = _ram[0xff40];
             int windowTileMap = (ff40 & 0x40) == 0x40 ? 0x9c00 : 0x9800;
