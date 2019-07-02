@@ -20,6 +20,7 @@ namespace GB
         private static CPU cpu;
         private static LCD lcd;
         private static Timer timer;
+        private static Sound sound;
 
         static void Main(string[] args)
         {
@@ -260,6 +261,8 @@ namespace GB
                                 {
                                     Cartridge gamecart = new Cartridge(openDialog.FullPath);
                                     ram = new Memory();
+                                    sound = new Sound(ram);
+                                    ram.Sound = sound;
                                     timer = new Timer(ram);
                                     ram.Timer = timer;
                                     cpu = new CPU(ram);
@@ -323,6 +326,7 @@ namespace GB
 
                                 frameReady = lcd.Tick1MHz();
                                 ram.Tick1MHz();
+                                sound.Tick1MHz();
                                 timer.Tick1MHz();   // TODO:  "If a TMA write is executed with the same 
                                                     // timing of TMA being transferred to TIMA, then the TMA
                                                     // write goes to TIMA as well" (p 26 Gameboy Dev Manual)

@@ -14,6 +14,8 @@ namespace GB
 
         public LCD LCD { get; set; }
 
+        public Sound Sound { get; set; }
+
         [Flags]
         public enum JoyPadButton : byte
         {
@@ -146,6 +148,32 @@ namespace GB
                     else if (a == 0xff05)
                     {
                         if (!timaDelayed) specialPurpose[0x105] = value;
+                        return;
+                    }
+                    else if (a == 0xff14)
+                    {
+                        specialPurpose[0x114] = value;
+                        if ((value & 0x80) == 0x80) Sound.InitSound1(this);
+                        return;
+                    }
+                    else if (a == 0xff17)
+                    {
+                        specialPurpose[0x117] = value;
+                        Console.WriteLine("0xff17: 0x" + value.ToString("X"));
+                        //if ((value & 0x80) == 0x80) Sound.InitSound2(this);
+                        return;
+                    }
+                    else if (a == 0xff19)
+                    {
+                        specialPurpose[0x119] = value;
+                        Console.WriteLine("0xff19: 0x" + value.ToString("X"));
+                        if ((value & 0x80) == 0x80) Sound.InitSound2(this);
+                        return;
+                    }
+                    else if (a == 0xff23)
+                    {
+                        specialPurpose[0x123] = value;
+                        if ((value & 0x80) == 0x80) Sound.InitSound4(this);
                         return;
                     }
                     else if (a == 0xff10) return;
