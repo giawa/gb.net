@@ -110,6 +110,8 @@ namespace GB
                     else if (a < 0xFE00) return internalRam[(a - 0xC000) % 8192];
                     else if (a == 0xff00) return (byte)(GetJoyPad() | 0b11000000);          // P1
                     else if (a == 0xff04) return (byte)(TimerCounter >> 6);
+                    else if (a == 0xff26)
+                        return specialPurpose[0x126];
                     else return specialPurpose[a & 511];
                 }
                 else
@@ -176,14 +178,20 @@ namespace GB
                         if ((value & 0x80) == 0x80) Sound.InitSound4(this);
                         return;
                     }
+                    else if (a == 0xff24)
+                    {
+                        specialPurpose[0x124] = value;
+                        //Console.WriteLine(value);
+                        return;
+                    }
                     else if (a == 0xff10) return;
-                    else if (a == 0xff1A) return;          // NR30
-                    else if (a == 0xff1C) return;          // NR32
-                    else if (a == 0xff20) return;    // NR41
-                    else if (a == 0xff23) return;          // NR44
-                    else if (a == 0xff26) return;          // NR52
-                    else if (a == 0xff40) value |= 0x01;//return (byte)(specialPurpose[0x140] | 0x01);
-                    else if (a == 0xff41) value |= 0x80;//return (byte)(0x80 | (specialPurpose[0x141] & 0x7f)); // STAT
+                    else if (a == 0xff1A) return;   // NR30
+                    else if (a == 0xff1C) return;   // NR32
+                    else if (a == 0xff20) return;   // NR41
+                    else if (a == 0xff23) return;   // NR44
+                    else if (a == 0xff26) value |= 0x70;    // NR52
+                    else if (a == 0xff40) value |= 0x01;    //return (byte)(specialPurpose[0x140] | 0x01);
+                    else if (a == 0xff41) value |= 0x80;    //return (byte)(0x80 | (specialPurpose[0x141] & 0x7f)); // STAT
                     else if (a == 0xff03 || a == 0xff08 || (a >= 0xff09 && a <= 0xff0e)) return;    // unmapped
                     else if (a == 0xff15 || a == 0xff1f || (a >= 0xff27 && a <= 0xff29)) return;    // unmapped
                     else if (a >= 0xff4c && a <= 0xff7f) return;    // unmapped
