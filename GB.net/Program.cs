@@ -249,7 +249,7 @@ namespace GB
 
                     if (showOpenDialog)
                     {
-                        if (openDialog.DisplayFileDialog("Open File", new string[] { ".gb" }, @"E:\Tutorials\GB.net\GB.net\bin\Debug\netcoreapp2.1", "."))
+                        if (openDialog.DisplayFileDialog("Open File", new string[] { ".gb" }, Directory.GetCurrentDirectory(), "."))
                         {
                             showOpenDialog = false;
 
